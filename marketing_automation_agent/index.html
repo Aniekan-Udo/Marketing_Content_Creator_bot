@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BrandGuard AI — Content Generation & Feedback</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif']
+          },
+          colors: {
+            primary: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              200: '#bae6fd',
+              300: '#7dd3fc',
+              400: '#38bdf8',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              800: '#075985',
+              900: '#0c4a6e'
+            },
+            success: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a'
+            },
+            warning: {
+              50: '#fffbeb',
+              100: '#fef3c7',
+              500: '#f59e0b',
+              600: '#d97706'
+            },
+            critical: {
+              50: '#fef2f2',
+              100: '#fee2e2',
+              500: '#ef4444',
+              600: '#dc2626'
+            },
+            brand: {
+              formal: '#6366f1',
+              casual: '#8b5cf6',
+              technical: '#0d9488',
+              playful: '#ec4899'
+            },
+            surface: {
+              light: '#ffffff',
+              dark: '#0f172a',
+              card: '#f8fafc',
+              cardDark: '#1e293b'
+            }
+          },
+          boxShadow: {
+            glow: '0 0 12px rgba(14, 165, 233, 0.25)'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { 
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+    }
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .agent-card {
+      transition: all 0.3s ease;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .agent-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    }
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    .pulse {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(14, 165, 233, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-success {
+      background-color: #dcfce7;
+      color: #16a34a;
+    }
+    .badge-warning {
+      background-color: #fef3c7;
+      color: #d97706;
+    }
+    .badge-info {
+      background-color: #dbeafe;
+      color: #0284c7;
+    }
+  </style>
+</head>
+<body class="text-gray-800 dark:text-gray-100 min-h-screen">
+  <!-- Header -->
+  <header class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <!-- Logo -->
+        <div class="flex items-center space-x-3">
+          <div class="relative">
+            <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg">
+              <span class="text-white font-bold text-lg">BG</span>
+              <div class="absolute -top-1 -right-1 w-3 h-3 bg-success-500 rounded-full border-2 border-white"></div>
+            </div>
+          </div>
+          <div>
+            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-800">
+              Brand<span class="text-primary-600">Guard</span> AI
+            </h1>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Precision content, perfected</p>
+          </div>
+        </div>
+
+        <!-- Nav & Actions -->
+        <div class="flex items-center space-x-4">
+          <nav class="hidden md:flex space-x-6">
+            <a href="#" class="font-medium text-primary-600">Dashboard</a>
+            <a href="/feedback" class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 flex items-center">
+              <i class="fas fa-comments mr-1.5"></i> Feedback
+            </a>
+            <a href="#" class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200">Style Guide</a>
+          </nav>
+          <button class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl font-medium flex items-center transition-all shadow-md hover:shadow-lg">
+            <i class="fas fa-magic mr-2"></i> New Request
+          </button>
+          <button id="theme-toggle" class="p-2.5 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+            <i class="fas fa-moon text-gray-600 dark:text-gray-300"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Hero Section -->
+    <div class="text-center mb-12">
+      <h2 class="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300">
+        AI Content, <span class="text-primary-600">Brand-Perfect</span>
+      </h2>
+      <p class="mt-4 text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+        Your CrewAI agents research, write, and review — all while enforcing your brand voice with surgical precision.
+      </p>
+      
+      <!-- Learning Stats Badge -->
+      <div class="mt-6 flex justify-center space-x-4" id="learningStatsBadges">
+        <div class="badge badge-info">
+          <i class="fas fa-brain mr-1"></i> Learning Active
+        </div>
+      </div>
+    </div>
+
+    <!-- KB Upload Section -->
+    <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 p-6 rounded-2xl border border-emerald-200 dark:border-emerald-800/30 mb-8">
+      <h3 class="text-xl font-bold text-emerald-800 dark:text-emerald-200 mb-4 flex items-center">
+        <i class="fas fa-upload mr-2"></i> Upload Brand Documents
+      </h3>
+      <form id="kbUpload" enctype="multipart/form-data" class="space-y-3">
+        <!-- Business ID Input -->
+        <div>
+          <label class="block text-sm font-medium text-emerald-800 dark:text-emerald-200 mb-2">
+            <i class="fas fa-building mr-1"></i> Business ID
+          </label>
+          <input type="text" 
+                 name="business_id" 
+                 id="businessIdInput"
+                 placeholder="e.g., BAND_Foods, tech_startup" 
+                 value="BAND_Foods"
+                 class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+          <p class="text-xs text-emerald-700 dark:text-emerald-300 mt-1">Unique identifier for your brand's knowledge base</p>
+        </div>
+        
+        <select name="content_type" class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+          <option value="blog">Blog Examples</option>
+          <option value="social">Social Media Posts</option>
+          <option value="ad">Ad Copy Samples</option>
+        </select>
+        
+        <input type="file" name="files" id="fileInput" multiple accept=".txt,.md,.docx,.pdf"
+               class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+        
+        <div id="filePreview" class="text-xs text-emerald-700 dark:text-emerald-300 hidden mt-1"></div>
+        
+        <button type="submit" class="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all">
+          <i class="fas fa-cloud-upload-alt mr-2"></i> Build Knowledge Base
+        </button>
+      </form>
+      <div id="kbStatus" class="mt-4 p-3 bg-white/50 rounded-xl text-sm hidden"></div>
+    </div>
+
+    <!-- Request Card -->
+    <div class="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl p-6 mb-12">
+      <div class="flex flex-col md:flex-row md:items-center justify-between">
+        <div>
+          <h3 class="text-xl font-bold text-gray-900 dark:text-white">🚀 Generate Brand-Aligned Content</h3>
+          <p class="text-gray-600 dark:text-gray-400 mt-1">Powered by your knowledge base & 2026 research</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex space-x-3">
+          <div class="flex items-center">
+            <span class="status-dot bg-success-500"></span>
+            <span class="text-sm font-medium text-success-700 dark:text-success-400" id="kbStatusIndicator">KB Ready</span>
+          </div>
+          <div class="flex items-center">
+            <span class="status-dot bg-primary-500"></span>
+            <span class="text-sm font-medium text-primary-700 dark:text-primary-400">Agents Ready</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Topic</label>
+          <input id="topicInput" type="text" value="healthy dieting" 
+            class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Format</label>
+          <select id="formatSelect" class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500">
+            <option>Blog Article</option>
+            <option>LinkedIn Post</option>
+            <option>Email Newsletter</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Voice</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" id="voiceFormal" class="px-3 py-2 bg-brand-formal/20 text-brand-formal rounded-lg text-sm font-medium hover:bg-brand-formal/30 transition-colors ring-2 ring-brand-formal/50">
+              <i class="fas fa-university mr-1"></i> Formal
+            </button>
+            <button type="button" id="voiceTechnical" class="px-3 py-2 bg-brand-technical/10 text-brand-technical rounded-lg text-sm font-medium hover:bg-brand-technical/20 transition-colors">
+              <i class="fas fa-microchip mr-1"></i> Technical
+            </button>
+          </div>
+        </div>
+        <div class="flex items-end">
+          <button id="generateBtn" class="w-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center">
+            <i class="fas fa-play-circle mr-2"></i> Generate
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Workflow -->
+    <div class="mb-12">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-2xl font-bold text-gray-900 dark:text-white">
+          <i class="fas fa-users mr-2 text-primary-500"></i> Your AI Crew in Action
+        </h3>
+        <div class="text-sm bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300 px-3 py-1 rounded-full font-medium">
+          Sequential Mode • 5 Agents
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <!-- Researcher -->
+        <div class="agent-card border border-primary-200 dark:border-primary-800/50" id="researcherCard">
+          <div class="bg-gradient-to-r from-primary-500 to-primary-600 p-4 text-white">
+            <div class="flex justify-between items-start">
+              <div>
+                <h4 class="font-bold text-base flex items-center">
+                  <i class="fas fa-search mr-2 text-sm"></i> Research
+                </h4>
+                <p class="text-primary-100 mt-1 text-xs">2026 insights</p>
+              </div>
+              <span class="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">1</span>
+            </div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 p-4">
+            <div class="flex items-center mb-2">
+              <span class="status-dot bg-gray-400" id="researcherDot"></span>
+              <span class="font-medium text-sm text-gray-500 dark:text-gray-400" id="researcherStatus">Idle</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Strategist -->
+        <div class="agent-card border border-purple-200 dark:border-purple-800/50" id="strategistCard">
+          <div class="bg-gradient-to-r from-purple-500 to-purple-600 p-4 text-white">
+            <div class="flex justify-between items-start">
+              <div>
+                <h4 class="font-bold text-base flex items-center">
+                  <i class="fas fa-lightbulb mr-2 text-sm"></i> Creative
+                </h4>
+                <p class="text-purple-100 mt-1 text-xs">Fresh angles</p>
+              </div>
+              <span class="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">2</span>
+            </div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 p-4">
+            <div class="flex items-center mb-2">
+              <span class="status-dot bg-gray-400" id="strategistDot"></span>
+              <span class="font-medium text-sm text-gray-500 dark:text-gray-400" id="strategistStatus">Waiting</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Analyst -->
+        <div class="agent-card border border-cyan-200 dark:border-cyan-800/50" id="analystCard">
+          <div class="bg-gradient-to-r from-cyan-500 to-cyan-600 p-4 text-white">
+            <div class="flex justify-between items-start">
+              <div>
+                <h4 class="font-bold text-base flex items-center">
+                  <i class="fas fa-chart-bar mr-2 text-sm"></i> Analyst
+                </h4>
+                <p class="text-cyan-100 mt-1 text-xs">Brand metrics</p>
+              </div>
+              <span class="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">3</span>
+            </div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 p-4">
+            <div class="flex items-center mb-2">
+              <span class="status-dot bg-gray-400" id="analystDot"></span>
+              <span class="font-medium text-sm text-gray-500 dark:text-gray-400" id="analystStatus">Waiting</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Writer -->
+        <div class="agent-card border border-brand-formal/30 dark:border-brand-formal/20" id="writerCard">
+          <div class="bg-gradient-to-r from-brand-formal to-indigo-700 p-4 text-white">
+            <div class="flex justify-between items-start">
+              <div>
+                <h4 class="font-bold text-base flex items-center">
+                  <i class="fas fa-feather-alt mr-2 text-sm"></i> Writer
+                </h4>
+                <p class="text-indigo-100 mt-1 text-xs">Brand voice</p>
+              </div>
+              <span class="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">4</span>
+            </div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 p-4">
+            <div class="flex items-center mb-2">
+              <span class="status-dot bg-gray-400" id="writerDot"></span>
+              <span class="font-medium text-sm text-gray-500 dark:text-gray-400" id="writerStatus">Waiting</span>
+            </div>
+            <div class="mt-2">
+              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                <div class="bg-gradient-to-r from-primary-400 to-primary-600 h-1.5 rounded-full" style="width: 0%" id="writerProgress"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reviewer -->
+        <div class="agent-card border border-warning-200 dark:border-warning-800/50" id="reviewerCard">
+          <div class="bg-gradient-to-r from-warning-500 to-amber-600 p-4 text-white">
+            <div class="flex justify-between items-start">
+              <div>
+                <h4 class="font-bold text-base flex items-center">
+                  <i class="fas fa-shield-alt mr-2 text-sm"></i> Reviewer
+                </h4>
+                <p class="text-amber-100 mt-1 text-xs">Quality gate</p>
+              </div>
+              <span class="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">5</span>
+            </div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 p-4">
+            <div class="flex items-center mb-2">
+              <span class="status-dot bg-gray-400" id="reviewerDot"></span>
+              <span class="font-medium text-sm text-gray-500 dark:text-gray-400" id="reviewerStatus">Waiting</span>
+            </div>
+            <p class="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-2 py-1 rounded mt-2">
+              <i class="fas fa-robot mr-1"></i> Auto + Human
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Review Dashboard -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden">
+      <div class="bg-gradient-to-r from-gray-900 to-gray-800 px-6 py-5">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-xl font-bold text-white flex items-center">
+              <i class="fas fa-chart-line mr-2"></i> Review Insights
+            </h3>
+            <p class="text-gray-300 mt-1 text-sm">Hybrid scoring: Automatic metrics + LLM judgment</p>
+          </div>
+          <a href="/feedback" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-all text-sm">
+            <i class="fas fa-comments mr-2"></i> View Feedback Queue
+          </a>
+        </div>
+      </div>
+      
+      <div class="p-6" id="reviewContent">
+        <div class="text-center py-12 text-gray-400">
+          <i class="fas fa-hourglass-start text-4xl mb-3"></i>
+          <p>Waiting for generation to complete...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-16 pt-8 border-t border-gray-200 dark:border-gray-800 text-center text-gray-500 dark:text-gray-400 text-sm">
+      <div class="flex items-center justify-center space-x-4 mb-2">
+        <span>BrandGuard AI v2.0</span>
+        <span>•</span>
+        <a href="/feedback" class="hover:text-primary-600 transition-colors">
+          <i class="fas fa-comments mr-1"></i> Feedback Portal
+        </a>
+        <span>•</span>
+        <button onclick="checkBackendHealth()" class="hover:text-primary-600 transition-colors">
+          <i class="fas fa-heartbeat mr-1"></i> Health Check
+        </button>
+      </div>
+      <p class="text-xs">Powered by CrewAI, LlamaIndex, and Hybrid Reflection Learning</p>
+    </footer>
+  </main>
+
+  <script>
+  // ===== GLOBAL STATE =====
+  let currentGenerationId = null;
+  let currentBusinessId = 'BAND_Foods';
+  let currentApproval = null;
+
+  // ===== THEME TOGGLE =====
+  const themeToggle = document.getElementById('theme-toggle');
+  const htmlEl = document.documentElement;
+  
+  const savedTheme = localStorage.getItem('theme');
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  
+  if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
+    htmlEl.classList.add('dark');
+    themeToggle.innerHTML = '<i class="fas fa-sun text-yellow-400"></i>';
+  }
+  
+  themeToggle.addEventListener('click', () => {
+    const isDark = htmlEl.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    themeToggle.innerHTML = isDark 
+      ? '<i class="fas fa-sun text-yellow-400"></i>' 
+      : '<i class="fas fa-moon text-gray-600 dark:text-gray-300"></i>';
+  });
+
+  // ===== LOAD LEARNING STATS =====
+  async function loadLearningStats() {
+    try {
+      const businessId = document.getElementById('businessIdInput').value.trim() || 'BAND_Foods';
+      const res = await fetch(`/api/learning/${businessId}/stats?content_type=blog`);
+      const stats = await res.json();
+      
+      if (stats.total_feedback > 0) {
+        const badgeContainer = document.getElementById('learningStatsBadges');
+        badgeContainer.innerHTML = `
+          <div class="badge badge-success">
+            <i class="fas fa-check-circle mr-1"></i> ${stats.approved} Approved
+          </div>
+          <div class="badge badge-warning">
+            <i class="fas fa-times-circle mr-1"></i> ${stats.rejected} Rejected
+          </div>
+          <div class="badge badge-info">
+            <i class="fas fa-brain mr-1"></i> ${stats.approval_rate}% Approval
+          </div>
+          <div class="badge badge-info">
+            <i class="fas fa-robot mr-1"></i> ${stats.agent_accuracy}% Accuracy
+          </div>
+        `;
+      }
+    } catch (e) {
+      console.log('Could not load learning stats:', e);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadLearningStats);
+
+  // ===== KB UPLOAD HANDLER =====
+  const kbForm = document.getElementById('kbUpload');
+  const kbStatus = document.getElementById('kbStatus');
+  const fileInput = document.getElementById('fileInput');
+  const filePreview = document.getElementById('filePreview');
+
+  fileInput.addEventListener('change', (e) => {
+    const files = e.target.files;
+    if (files.length > 0) {
+      filePreview.classList.remove('hidden');
+      const fileNames = Array.from(files).map(f => f.name).join(', ');
+      filePreview.innerHTML = `📎 ${files.length} file(s) selected: ${fileNames}`;
+    } else {
+      filePreview.classList.add('hidden');
+    }
+  });
+
+  kbForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const submitBtn = kbForm.querySelector('button[type="submit"]');
+    const businessIdInput = document.getElementById('businessIdInput');
+    const contentTypeSelect = kbForm.querySelector('select[name="content_type"]');
+    
+    const businessId = businessIdInput.value.trim();
+    currentBusinessId = businessId;
+    
+    if (!businessId) {
+      showKBError('Business ID is required');
+      return;
+    }
+    
+    const files = fileInput.files;
+    if (!files || files.length === 0) {
+      showKBError('Please select at least one file');
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('business_id', businessId);
+    formData.append('content_type', contentTypeSelect.value);
+    
+    for (let i = 0; i < files.length; i++) {
+      formData.append('files', files[i]);
+    }
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Uploading...';
+    
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        kbStatus.classList.remove('hidden');
+        kbStatus.className = 'mt-4 p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl text-sm';
+        kbStatus.innerHTML = `
+          <p class="font-semibold text-emerald-800 dark:text-emerald-200">✅ ${data.message}</p>
+          <p class="text-emerald-700 dark:text-emerald-300 text-xs mt-1">
+            Business: <strong>${data.business_id}</strong> • 
+            Files: ${data.files.join(', ')}
+          </p>
+        `;
+        
+        fileInput.value = '';
+        filePreview.classList.add('hidden');
+      } else {
+        throw new Error(data.error || 'Upload failed');
+      }
+    } catch (err) {
+      console.error('Upload error:', err);
+      showKBError(err.message);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i> Build Knowledge Base';
+    }
+  });
+
+  function showKBError(message) {
+    kbStatus.classList.remove('hidden');
+    kbStatus.className = 'mt-4 p-3 bg-red-100 dark:bg-red-900/30 rounded-xl text-sm';
+    kbStatus.innerHTML = `
+      <p class="font-semibold text-red-800 dark:text-red-200">❌ Error</p>
+      <p class="text-red-700 dark:text-red-300 text-xs mt-1">${message}</p>
+    `;
+  }
+
+  // ===== VOICE SELECTION =====
+  let currentVoice = 'formal';
+  const voiceFormal = document.getElementById('voiceFormal');
+  const voiceTechnical = document.getElementById('voiceTechnical');
+  
+  voiceFormal.addEventListener('click', () => {
+    currentVoice = 'formal';
+    voiceFormal.className = 'px-3 py-2 bg-brand-formal/20 text-brand-formal rounded-lg text-sm font-medium hover:bg-brand-formal/30 transition-colors ring-2 ring-brand-formal/50';
+    voiceTechnical.className = 'px-3 py-2 bg-brand-technical/10 text-brand-technical rounded-lg text-sm font-medium hover:bg-brand-technical/20 transition-colors';
+  });
+  
+  voiceTechnical.addEventListener('click', () => {
+    currentVoice = 'technical';
+    voiceTechnical.className = 'px-3 py-2 bg-brand-technical/20 text-brand-technical rounded-lg text-sm font-medium hover:bg-brand-technical/30 transition-colors ring-2 ring-brand-technical/50';
+    voiceFormal.className = 'px-3 py-2 bg-brand-formal/10 text-brand-formal rounded-lg text-sm font-medium hover:bg-brand-formal/20 transition-colors';
+  });
+
+  // ===== CONTENT GENERATION =====
+  const generateBtn = document.getElementById('generateBtn');
+  const topicInput = document.getElementById('topicInput');
+  const formatSelect = document.getElementById('formatSelect');
+  
+  generateBtn.addEventListener('click', async () => {
+    const businessId = document.getElementById('businessIdInput')?.value?.trim() || 'BAND_Foods';
+    currentBusinessId = businessId;
+    
+    if (!businessId) {
+      alert('Please enter a Business ID first');
+      return;
+    }
+    
+    generateBtn.disabled = true;
+    generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Crew Running...';
+    
+    const payload = {
+      business_id: businessId,
+      topic: topicInput.value || 'healthy dieting',
+      format: formatSelect.value,
+      voice: currentVoice
+    };
+    
+    console.log('🚀 Generating with payload:', payload);
+    
+    resetAgentCards();
+    
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Generation failed');
+      }
+      
+      const data = await res.json();
+      console.log('✅ Generation complete:', data);
+      
+      showResult(data);
+      
+    } catch (err) {
+      console.error('❌ Generation error:', err);
+      showError({error: err.message, error_type: 'GenerationError'});
+    } finally {
+      resetGenerateBtn();
+    }
+  });
+
+  // ===== AGENT CARDS UI =====
+  function resetAgentCards() {
+    const agents = [
+      {id: 'researcher', color: 'primary', emoji: '🔍'},
+      {id: 'strategist', color: 'purple', emoji: '💡'},
+      {id: 'analyst', color: 'cyan', emoji: '📊'},
+      {id: 'writer', color: 'primary', emoji: '✍️'},
+      {id: 'reviewer', color: 'warning', emoji: '🛡️'}
+    ];
+    
+    agents.forEach((agent, index) => {
+      const dot = document.getElementById(`${agent.id}Dot`);
+      const status = document.getElementById(`${agent.id}Status`);
+      
+      setTimeout(() => {
+        dot.className = `status-dot bg-${agent.color}-500 pulse`;
+        status.className = `font-medium text-sm text-${agent.color}-700 dark:text-${agent.color}-400`;
+        status.textContent = `Running ${agent.emoji}`;
+        
+        setTimeout(() => {
+          dot.className = `status-dot bg-success-500`;
+          status.className = 'font-medium text-sm text-success-700 dark:text-success-400';
+          status.textContent = 'Done ✅';
+        }, 2000);
+      }, index * 1000);
+    });
+    
+    const writerProgress = document.getElementById('writerProgress');
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += 5;
+      writerProgress.style.width = Math.min(progress, 100) + '%';
+      if (progress >= 100) clearInterval(progressInterval);
+    }, 300);
+    
+    document.getElementById('reviewContent').innerHTML = `
+      <div class="text-center py-12 text-gray-400">
+        <i class="fas fa-spinner fa-spin text-4xl mb-3"></i>
+        <p>CrewAI agents are working...</p>
+        <p class="text-sm mt-2">This may take 30-60 seconds</p>
+      </div>
+    `;
+  }
+
+  function resetGenerateBtn() {
+    generateBtn.disabled = false;
+    generateBtn.innerHTML = '<i class="fas fa-play-circle mr-2"></i> Generate';
+  }
+
+  // ===== SHOW RESULT =====
+  function showResult(data) {
+    const reviewContent = document.getElementById('reviewContent');
+    
+    const autoScore = data.auto_score || 7.5;
+    const content = data.content || 'Content generated successfully!';
+    const creativeAngle = data.creative_angle || 'Unknown Angle';
+    const generationId = data.generation_id;
+    const businessId = data.business_id;
+    const topic = data.topic;
+    const formatType = data.format_type;
+    const contentType = formatType.toLowerCase().includes('blog') ? 'blog' : 
+                        formatType.toLowerCase().includes('social') ? 'social' : 'ad';
+    
+    currentGenerationId = generationId;
+    currentBusinessId = businessId;
+    
+    console.log('📊 Displaying result:', {generationId, autoScore, creativeAngle});
+    
+    reviewContent.innerHTML = `
+      <!-- Score Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6">
+        <div class="bg-gradient-to-br from-success-50 to-success-100 dark:from-success-900/20 dark:to-transparent p-5 rounded-xl border border-success-200 dark:border-success-800/50">
+          <div class="flex items-center">
+            <div class="w-10 h-10 bg-success-100 dark:bg-success-900/30 rounded-lg flex items-center justify-center text-success-600 dark:text-success-400">
+              <i class="fas fa-robot"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-sm text-success-700 dark:text-success-300">Auto Score</p>
+              <p class="text-2xl font-bold text-gray-900 dark:text-white">
+                ${autoScore.toFixed(1)} 
+                <span class="text-sm font-normal text-gray-500 dark:text-gray-400">/10</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-transparent p-5 rounded-xl border border-purple-200 dark:border-purple-800/50">
+          <div class="flex items-center">
+            <div class="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center text-purple-600 dark:text-purple-400">
+              <i class="fas fa-lightbulb"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-sm text-purple-700 dark:text-purple-300">Creative Angle</p>
+              <p class="text-xs font-bold text-gray-900 dark:text-white">${escapeHtml(creativeAngle)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-transparent p-5 rounded-xl border border-blue-200 dark:border-blue-800/50">
+          <div class="flex items-center">
+            <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400">
+              <i class="fas fa-fingerprint"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-sm text-blue-700 dark:text-blue-300">Generation ID</p>
+              <p class="text-xs font-mono font-bold text-gray-900 dark:text-white">
+                ${generationId.substring(0, 8)}...
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-transparent p-5 rounded-xl border border-amber-200 dark:border-amber-800/50">
+          <div class="flex items-center">
+            <div class="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center text-amber-600 dark:text-amber-400">
+              <i class="fas fa-building"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-sm text-amber-700 dark:text-amber-300">Business</p>
+              <p class="text-xs font-bold text-gray-900 dark:text-white">${escapeHtml(businessId)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Generated Content -->
+      <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 p-6 rounded-2xl border border-emerald-200 dark:border-emerald-800/30 mb-6">
+        <h4 class="text-lg font-bold text-emerald-800 dark:text-emerald-200 mb-3 flex items-center">
+          <i class="fas fa-file-alt mr-2"></i> Generated Content
+        </h4>
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl border border-emerald-200 dark:border-emerald-700">
+          <div class="prose dark:prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed">
+${escapeHtml(content)}
+          </div>
+        </div>
+        
+        <div class="mt-4 grid grid-cols-2 gap-3 text-xs text-emerald-700 dark:text-emerald-300">
+          <div><strong>Topic:</strong> ${escapeHtml(topic)}</div>
+          <div><strong>Format:</strong> ${escapeHtml(formatType)}</div>
+          <div><strong>Creative Angle:</strong> ${escapeHtml(creativeAngle)}</div>
+          <div><strong>Generated:</strong> ${new Date(data.timestamp).toLocaleString()}</div>
+        </div>
+      </div>
+
+      <!-- FEEDBACK FORM -->
+      <div class="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 p-6 rounded-2xl border border-blue-200 dark:border-blue-800/30 mb-6">
+        <h4 class="text-lg font-bold text-blue-800 dark:text-blue-200 mb-4 flex items-center">
+          <i class="fas fa-comments mr-2"></i> Provide Human Feedback
+        </h4>
+        
+        <p class="text-sm text-blue-700 dark:text-blue-300 mb-4">
+          Your feedback trains the AI to improve future generations. Help us learn what works!
+        </p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+              Approve or Reject?
+            </label>
+            <div class="flex space-x-3">
+              <button onclick="setApproval(true)" id="approveBtn" 
+                class="flex-1 px-4 py-3 bg-success-500 hover:bg-success-600 text-white rounded-xl font-medium transition-all flex items-center justify-center">
+                <i class="fas fa-check-circle mr-2"></i> Approve
+              </button>
+              <button onclick="setApproval(false)" id="rejectBtn" 
+                class="flex-1 px-4 py-3 bg-critical-500 hover:bg-critical-600 text-white rounded-xl font-medium transition-all flex items-center justify-center">
+                <i class="fas fa-times-circle mr-2"></i> Reject
+              </button>
+            </div>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+              Your Score (0-10)
+            </label>
+            <input type="number" id="humanScoreInput" 
+              min="0" max="10" step="0.1" 
+              value="${autoScore.toFixed(1)}" 
+              class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-semibold">
+            <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+              Agent scored: ${autoScore.toFixed(1)}/10
+            </p>
+          </div>
+        </div>
+        
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+            Feedback Comments <span class="text-critical-500">*</span>
+          </label>
+          <textarea id="humanFeedbackInput" 
+            rows="4" 
+            placeholder="What worked well? What needs improvement? Be specific to help the AI learn..." 
+            class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"></textarea>
+          <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+            <i class="fas fa-lightbulb mr-1"></i> 
+            Tip: Mention tone, structure, creativity, or brand alignment
+          </p>
+        </div>
+        
+        <button onclick="submitHumanFeedback('${generationId}', '${businessId}', '${escapeHtml(creativeAngle)}', ${autoScore}, '${contentType}')" 
+          id="submitFeedbackBtn"
+          class="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-3 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all flex items-center justify-center">
+          <i class="fas fa-paper-plane mr-2"></i> Submit Feedback & Train AI
+        </button>
+        
+        <div id="feedbackStatus" class="mt-3 hidden"></div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="pt-6 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-3">
+        <button onclick="location.reload()" 
+          class="px-5 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center">
+          <i class="fas fa-redo mr-2"></i> New Generation
+        </button>
+        <button onclick="copyToClipboard(\`${content.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`, this)" 
+          class="px-5 py-3 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-medium flex items-center shadow-md hover:shadow-lg transition-all">
+          <i class="fas fa-copy mr-2"></i> Copy Content
+        </button>
+        <a href="/feedback" 
+          class="px-5 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl font-medium flex items-center shadow-md hover:shadow-lg transition-all">
+          <i class="fas fa-list mr-2"></i> View All Feedback
+        </a>
+      </div>
+    `;
+    
+    currentApproval = null;
+  }
+
+  // ===== FEEDBACK FUNCTIONS =====
+  function setApproval(approved) {
+    currentApproval = approved;
+    const approveBtn = document.getElementById('approveBtn');
+    const rejectBtn = document.getElementById('rejectBtn');
+    
+    if (approved) {
+      approveBtn.className = 'flex-1 px-4 py-3 bg-success-600 text-white rounded-xl font-medium ring-2 ring-success-400 flex items-center justify-center transition-all';
+      rejectBtn.className = 'flex-1 px-4 py-3 bg-critical-500 hover:bg-critical-600 text-white rounded-xl font-medium transition-all flex items-center justify-center';
+    } else {
+      approveBtn.className = 'flex-1 px-4 py-3 bg-success-500 hover:bg-success-600 text-white rounded-xl font-medium transition-all flex items-center justify-center';
+      rejectBtn.className = 'flex-1 px-4 py-3 bg-critical-600 text-white rounded-xl font-medium ring-2 ring-critical-400 flex items-center justify-center transition-all';
+    }
+  }
+
+  async function submitHumanFeedback(generationId, businessId, creativeAngle, autoScore, contentType) {
+    if (currentApproval === null) {
+      alert('⚠️ Please select Approve or Reject first');
+      return;
+    }
+    
+    const humanScore = parseFloat(document.getElementById('humanScoreInput').value);
+    const humanFeedback = document.getElementById('humanFeedbackInput').value.trim();
+    
+    if (!humanFeedback) {
+      alert('⚠️ Please provide feedback comments (required)');
+      document.getElementById('humanFeedbackInput').focus();
+      return;
+    }
+    
+    if (isNaN(humanScore) || humanScore < 0 || humanScore > 10) {
+      alert('⚠️ Please enter a valid score between 0 and 10');
+      return;
+    }
+    
+    const submitBtn = document.getElementById('submitFeedbackBtn');
+    const originalBtnHTML = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Submitting...';
+    
+    const feedbackStatus = document.getElementById('feedbackStatus');
+    feedbackStatus.classList.remove('hidden');
+    feedbackStatus.className = 'mt-3 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-sm';
+    feedbackStatus.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving feedback to learning memory...';
+    
+    try {
+      const payload = {
+        generation_id: generationId,
+        business_id: businessId,
+        human_approved: currentApproval,
+        human_score: humanScore,
+        human_feedback: humanFeedback
+      };
+      
+      console.log('📝 Submitting feedback:', payload);
+      
+      const res = await fetch('/api/feedback/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || errorData.error || 'Feedback submission failed');
+      }
+      
+      const data = await res.json();
+      console.log('✅ Feedback saved:', data);
+      
+      feedbackStatus.className = 'mt-3 p-4 bg-success-100 dark:bg-success-900/30 rounded-lg text-sm border border-success-300 dark:border-success-700';
+      feedbackStatus.innerHTML = `
+        <div class="flex items-start">
+          <i class="fas fa-check-circle text-success-600 dark:text-success-400 text-xl mr-3 mt-0.5"></i>
+          <div class="flex-1">
+            <p class="font-semibold text-success-800 dark:text-success-200">
+              ✅ Feedback Saved Successfully!
+            </p>
+            <p class="text-success-700 dark:text-success-300 text-xs mt-1">
+              ${data.message || 'Your feedback will improve future generations.'}
+            </p>
+            ${data.agent_accuracy !== undefined ? `
+            <p class="text-success-600 dark:text-success-400 text-xs mt-2">
+              <i class="fas fa-robot mr-1"></i> 
+              Agent Accuracy: <strong>${data.agent_accuracy.toFixed(1)}%</strong>
+            </p>
+            ` : ''}
+          </div>
+        </div>
+      `;
+      
+      document.getElementById('approveBtn').disabled = true;
+      document.getElementById('rejectBtn').disabled = true;
+      document.getElementById('humanScoreInput').disabled = true;
+      document.getElementById('humanFeedbackInput').disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Feedback Submitted';
+      
+      setTimeout(() => {
+        loadLearningStats();
+      }, 1000);
+      
+    } catch (err) {
+      console.error('❌ Feedback error:', err);
+      
+      feedbackStatus.className = 'mt-3 p-4 bg-red-100 dark:bg-red-900/30 rounded-lg text-sm border border-red-300 dark:border-red-700';
+      feedbackStatus.innerHTML = `
+        <div class="flex items-start">
+          <i class="fas fa-exclamation-triangle text-red-600 dark:text-red-400 text-xl mr-3 mt-0.5"></i>
+          <div class="flex-1">
+            <p class="font-semibold text-red-800 dark:text-red-200">❌ Feedback Submission Failed</p>
+            <p class="text-red-700 dark:text-red-300 text-xs mt-1">${err.message}</p>
+          </div>
+        </div>
+      `;
+      
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnHTML;
+    }
+  }
+
+  // ===== ERROR DISPLAY =====
+  function showError(result) {
+    const reviewContent = document.getElementById('reviewContent');
+    const errorMsg = result?.error || 'An unexpected error occurred';
+    const errorType = result?.error_type || 'Unknown';
+    
+    reviewContent.innerHTML = `
+      <div class="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 p-6 rounded-2xl border border-red-200 dark:border-red-800/30">
+        <h4 class="text-lg font-bold text-red-800 dark:text-red-200 mb-3 flex items-center">
+          <i class="fas fa-exclamation-triangle mr-2"></i> Generation Failed
+        </h4>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-red-200 dark:border-red-700">
+          <p class="text-red-600 dark:text-red-400 font-medium">${escapeHtml(errorMsg)}</p>
+          <p class="text-xs text-red-500 dark:text-red-500 mt-2">Error Type: ${escapeHtml(errorType)}</p>
+        </div>
+        <div class="mt-4 flex gap-3">
+          <button onclick="location.reload()" class="px-5 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium transition-colors">
+            <i class="fas fa-redo mr-2"></i> Try Again
+          </button>
+          <button onclick="checkBackendHealth()" class="px-5 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-xl font-medium transition-colors">
+            <i class="fas fa-heartbeat mr-2"></i> Check Backend
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  // ===== UTILITY FUNCTIONS =====
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  function copyToClipboard(text, button) {
+    navigator.clipboard.writeText(text).then(() => {
+      const originalHTML = button.innerHTML;
+      button.innerHTML = '<i class="fas fa-check mr-2"></i> Copied!';
+      button.classList.add('bg-success-500');
+      
+      setTimeout(() => {
+        button.innerHTML = originalHTML;
+        button.classList.remove('bg-success-500');
+      }, 2000);
+    }).catch(err => {
+      alert('Failed to copy: ' + err);
+    });
+  }
+  
+  async function checkBackendHealth() {
+    try {
+      const res = await fetch('/health');
+      const data = await res.json();
+      
+      const envStatus = `
+Groq API: ${data.environment.groq_api_key ? '✅' : '❌'}
+Postgres: ${data.environment.postgres_uri ? '✅' : '❌'}
+Tavily: ${data.environment.tavily_api_key ? '✅' : '❌'}
+      `.trim();
+      
+      alert(`Backend Status: ${data.status}\n\nTimestamp: ${data.timestamp}\n\n${envStatus}`);
+    } catch (e) {
+      alert('❌ Backend is not responding!\n\nMake sure the server is running:\npython app.py');
+    }
+  }
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+□ Rate limiting + quota management per business_id
+□ User permissions (RBAC) on knowledge bases  
+□ A/B testing framework for generated content
+□ Multi-LLM fallback (Groq → OpenAI → Anthropic)
+□ Comprehensive eval suite (RAGAS + custom brand alignment metrics)
+□ Distributed tracing (Opik/LangSmith integration)
+□ Automated drift detection (KB staleness alerts)

@@ -1,0 +1,28 @@
+services: 
+  db: 
+    image: pgvector/pgvector:pg16
+    restart: always 
+    environment: 
+      POSTGRES_DB: marketing_db
+      POSTGRES_USER: postgres      #
+      POSTGRES_PASSWORD: nkereuwem
+    ports: 
+      - "5432:5432" 
+    volumes: 
+      - db-data:/var/lib/postgresql/data 
+  admin: 
+    image: dpage/pgadmin4 
+    restart: always 
+    environment: 
+      PGADMIN_DEFAULT_EMAIL: expound30@gmail.com    
+      PGADMIN_DEFAULT_PASSWORD: nkereuwem
+    ports: 
+      - "8080:80" 
+    volumes: 
+      - admin-data:/var/lib/pgadmin 
+    depends_on:
+      - db                                    
+
+volumes: 
+  db-data: 
+  admin-data:

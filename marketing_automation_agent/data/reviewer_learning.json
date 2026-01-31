@@ -1,0 +1,111 @@
+{
+  "total": 15,
+  "correct": 15,
+  "reviews": [
+    {
+      "kb_score": 9.2,
+      "confidence": 0.92,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-24T15:10:26.555152"
+    },
+    {
+      "kb_score": 9.0,
+      "confidence": 0.95,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-24T15:46:55.882906"
+    },
+    {
+      "kb_score": 9.2,
+      "confidence": 0.92,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-24T16:01:28.648273"
+    },
+    {
+      "kb_score": 9.0,
+      "confidence": 0.92,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-24T18:26:59.166846"
+    },
+    {
+      "kb_score": 9.0,
+      "confidence": 0.92,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-24T18:36:34.307298"
+    },
+    {
+      "kb_score": 9.0,
+      "confidence": 0.92,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-26T07:20:54.030441"
+    },
+    {
+      "kb_score": 9.0,
+      "confidence": 0.95,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-26T07:27:39.994856"
+    },
+    {
+      "kb_score": 9.5,
+      "confidence": 0.95,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-26T07:50:00.597830"
+    },
+    {
+      "kb_score": 9.0,
+      "confidence": 0.95,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-26T08:12:26.322735"
+    },
+    {
+      "kb_score": 9.0,
+      "confidence": 0.95,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-26T08:33:42.738517"
+    },
+    {
+      "kb_score": 9.0,
+      "confidence": 0.95,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-26T10:57:50.633340"
+    },
+    {
+      "kb_score": 9.0,
+      "confidence": 0.95,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-26T11:42:13.047705"
+    },
+    {
+      "kb_score": 9.0,
+      "confidence": 0.95,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-26T12:10:02.532157"
+    },
+    {
+      "kb_score": 9.2,
+      "confidence": 0.95,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-26T12:37:11.121931"
+    },
+    {
+      "kb_score": 9.5,
+      "confidence": 0.95,
+      "human_approved": true,
+      "agent_correct": true,
+      "timestamp": "2026-01-26T12:47:23.434388"
+    }
+  ]
+}
