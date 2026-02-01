@@ -1,9 +1,20 @@
+"""
+Production-ready database models and configuration with:
+- Connection pooling with health checks
+- Retry logic with exponential backoff
+- Proper error handling and logging
+- Transaction management
+"""
+
 import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, MetaData, String
+from sqlalchemy import create_engine, MetaData, String, event
 from sqlalchemy.orm import Mapped, mapped_column, sessionmaker, Session
+from sqlalchemy.pool import QueuePool
 from typing import Optional
 from datetime import datetime
+from contextlib import contextmanager
+import structlog
 
 from sqlalchemy import (
     String, Integer, Boolean, DateTime, Text, DECIMAL, 
@@ -13,9 +24,13 @@ from sqlalchemy.orm import (
     DeclarativeBase, relationship
 )
 from sqlalchemy.dialects.postgresql import JSONB, INET
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from sqlalchemy.exc import OperationalError, DatabaseError
 
-# Load environment variables FIRST
+# Load environment variables
 load_dotenv()
+
+logger = structlog.get_logger(__name__)
 
 # ===== BASE MODEL =====
 class Model(DeclarativeBase):
@@ -27,13 +42,14 @@ class Model(DeclarativeBase):
         "pk": "pk_%(table_name)s",
     })
 
+
 # ===== MODELS =====
 class User(Model):
     __tablename__ = 'users'
     
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    business_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    business_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     business_name: Mapped[Optional[str]] = mapped_column(String(255))
     industry: Mapped[Optional[str]] = mapped_column(String(100))
     
@@ -71,11 +87,11 @@ class BrandDocument(Model):
     __tablename__ = 'brand_documents'
     
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    business_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    business_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    content_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     file_path: Mapped[Optional[str]] = mapped_column(Text)
     file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer)
     
@@ -103,8 +119,8 @@ class GenerationFeedback(Model):
     __tablename__ = 'generation_feedback'
     
     id: Mapped[int] = mapped_column(primary_key=True)
-    generation_id: Mapped[int] = mapped_column(ForeignKey('reviewer_learning.id', ondelete='CASCADE'), nullable=False)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    generation_id: Mapped[int] = mapped_column(ForeignKey('reviewer_learning.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     
     feedback_type: Mapped[str] = mapped_column(String(50), nullable=False)
     
@@ -134,10 +150,10 @@ class UsageAnalytics(Model):
     __tablename__ = 'usage_analytics'
     
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'))
-    business_id: Mapped[Optional[str]] = mapped_column(String(100))
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), index=True)
+    business_id: Mapped[Optional[str]] = mapped_column(String(100), index=True)
     
-    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     event_data: Mapped[Optional[dict]] = mapped_column(JSONB)
     
     session_id: Mapped[Optional[str]] = mapped_column(String(255))
@@ -158,7 +174,7 @@ class APIKey(Model):
     __tablename__ = 'api_keys'
     
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     
     key_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     key_prefix: Mapped[Optional[str]] = mapped_column(String(20))
@@ -188,16 +204,14 @@ class ReviewerLearning(Model):
     __tablename__ = 'reviewer_learning'
     
     id: Mapped[int] = mapped_column(primary_key=True)
-    generation_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)  # UUID
+    generation_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     business_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    
-    # ✅ ADD THIS LINE:
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     
     # Generation metadata 
     topic: Mapped[str] = mapped_column(String(500))
-    content_type: Mapped[str] = mapped_column(String(50))  # blog/social/ad
-    format_type: Mapped[str] = mapped_column(String(100))  # Blog Article, etc
+    content_type: Mapped[str] = mapped_column(String(50), index=True)
+    format_type: Mapped[str] = mapped_column(String(100))
     generated_content: Mapped[str] = mapped_column(Text)
     creative_angle: Mapped[str] = mapped_column(String(200))
     
@@ -207,7 +221,7 @@ class ReviewerLearning(Model):
     agent_auto_approved: Mapped[bool] = mapped_column(Boolean, default=False)
     
     # Human feedback
-    has_human_feedback: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_human_feedback: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     human_approved: Mapped[Optional[bool]] = mapped_column(Boolean)
     human_score: Mapped[Optional[float]] = mapped_column(DECIMAL(3, 1))
     human_feedback: Mapped[Optional[str]] = mapped_column(Text)
@@ -222,43 +236,254 @@ class ReviewerLearning(Model):
         nullable=False
     )
 
-    # ✅ ADD THIS RELATIONSHIP:
     user = relationship("User", back_populates="generations")
-    
-    # ✅ REMOVE THIS (wrong relationship):
-    # generation = relationship("Generation", back_populates="reviewer_learning")
-    
     feedbacks = relationship("GenerationFeedback", back_populates="generation", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f'ReviewerLearning(generation_id={self.generation_id}, business={self.business_id})'
 
-# ===== DATABASE ENGINE & SESSION =====
-# Create engine ONCE at module import
-engine = create_engine(
-    os.getenv("POSTGRES_URI"),
-    echo=False,  # Set to True for debugging
-    pool_size=20,
-    max_overflow=10,
-    pool_pre_ping=True,
-)
 
-# Create session factory ONCE
+# ===== DATABASE ENGINE CONFIGURATION =====
+
+def get_database_url() -> str:
+    """Get database URL with validation"""
+    db_url = os.getenv("POSTGRES_URI")
+    if not db_url:
+        raise ValueError("POSTGRES_URI environment variable not set")
+    return db_url
+
+
+def create_db_engine():
+    """
+    Create database engine with production settings:
+    - Connection pooling with health checks
+    - Automatic reconnection
+    - Query timeout (set per-session for Neon compatibility)
+    """
+    db_url = get_database_url()
+    
+    # Check if using Neon pooler
+    is_neon_pooler = 'pooler' in db_url and 'neon.tech' in db_url
+    
+    # Base connect_args
+    connect_args = {
+        "connect_timeout": 10,
+        "sslmode": "require"  # Required for Neon
+    }
+    
+    # Only add statement_timeout if NOT using Neon pooler
+    if not is_neon_pooler:
+        connect_args["options"] = "-c statement_timeout=30000"
+    
+    engine = create_engine(
+        db_url,
+        # Connection pool settings
+        poolclass=QueuePool,
+        pool_size=20,              # Maximum connections in pool
+        max_overflow=10,           # Additional connections when pool is full
+        pool_timeout=30,           # Seconds to wait for connection
+        pool_recycle=3600,         # Recycle connections after 1 hour
+        pool_pre_ping=True,        # Verify connections before using
+        
+        # Query settings
+        echo=False,                # Set to True for debugging
+        echo_pool=False,           # Pool logging
+        
+        # Performance settings
+        connect_args=connect_args
+    )
+    
+    # Add connection pool event listeners for monitoring
+    @event.listens_for(engine, "connect")
+    def receive_connect(dbapi_conn, connection_record):
+        logger.debug("Database connection established")
+        
+        # Set statement timeout for Neon pooler connections
+        if is_neon_pooler:
+            cursor = dbapi_conn.cursor()
+            try:
+                cursor.execute("SET statement_timeout = '30s'")
+            finally:
+                cursor.close()
+    
+    @event.listens_for(engine, "checkout")
+    def receive_checkout(dbapi_conn, connection_record, connection_proxy):
+        logger.debug("Connection checked out from pool")
+    
+    @event.listens_for(engine, "checkin")
+    def receive_checkin(dbapi_conn, connection_record):
+        logger.debug("Connection returned to pool")
+    
+    return engine
+
+
+# Create engine ONCE at module import
+try:
+    engine = create_db_engine()
+    logger.info("✅ Database engine created successfully")
+except Exception as e:
+    logger.error(f"❌ Failed to create database engine: {e}")
+    raise
+
+
+# Create session factory
 session_maker = sessionmaker(
     bind=engine,
     class_=Session,
     expire_on_commit=False,
     autoflush=False,
+    autocommit=False
 )
 
 
+# ===== DATABASE INITIALIZATION =====
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((OperationalError, DatabaseError)),
+    reraise=True
+)
 def init_db():
-    """Initialize database - run once at startup (SYNCHRONOUS)"""
-    Model.metadata.create_all(engine)
-    print("✅ Database tables created successfully")
+    """
+    Initialize database with retry logic.
+    Creates all tables if they don't exist.
+    """
+    try:
+        logger.info("Initializing database...")
+        Model.metadata.create_all(engine)
+        logger.info("✅ Database tables created successfully")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Database initialization failed: {e}", exc_info=True)
+        raise
+
+
+# ===== SESSION MANAGEMENT =====
+
+@contextmanager
+def get_db_session():
+    """
+    Context manager for database sessions with automatic cleanup.
+    
+    Usage:
+        with get_db_session() as session:
+            user = session.query(User).first()
+    """
+    session = session_maker()
+    try:
+        yield session
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Database session error: {e}", exc_info=True)
+        raise
+    finally:
+        session.close()
 
 
 def get_session():
-    """Dependency for getting database sessions"""
-    with session_maker() as session:
+    """
+    Dependency for getting database sessions (FastAPI compatible).
+    
+    Usage:
+        @app.get("/users")
+        def get_users(session: Session = Depends(get_session)):
+            return session.query(User).all()
+    """
+    session = session_maker()
+    try:
         yield session
+    finally:
+        session.close()
+
+
+# ===== HEALTH CHECK =====
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=5),
+    retry=retry_if_exception_type((OperationalError, DatabaseError))
+)
+def check_database_health() -> bool:
+    """
+    Check if database is accessible and healthy.
+    
+    Returns:
+        bool: True if database is healthy
+    """
+    try:
+        with get_db_session() as session:
+            # Simple query to test connection
+            session.execute(func.now())
+        return True
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        return False
+
+
+# ===== HELPER FUNCTIONS =====
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((OperationalError, DatabaseError))
+)
+def get_or_create_user(business_id: str, email: str = None, session: Session = None) -> User:
+    """
+    Get existing user or create new one with retry logic.
+    
+    Args:
+        business_id: Business identifier
+        email: User email (optional)
+        session: Optional existing session
+        
+    Returns:
+        User: User object
+    """
+    close_session = False
+    
+    if session is None:
+        session = session_maker()
+        close_session = True
+    
+    try:
+        user = session.query(User).filter_by(business_id=business_id).first()
+        
+        if user:
+            return user
+        
+        # Create new user
+        email = email or f"{business_id}@brandguard.ai"
+        user = User(
+            email=email,
+            business_id=business_id,
+            business_name=business_id,
+            industry='Marketing'
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        
+        logger.info(f"✅ Created new user: {business_id}")
+        return user
+        
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Failed to get/create user: {e}", exc_info=True)
+        raise
+    finally:
+        if close_session:
+            session.close()
+
+
+def get_pool_status() -> dict:
+    """Get current connection pool status for monitoring"""
+    pool = engine.pool
+    return {
+        "size": pool.size(),
+        "checked_in": pool.checkedin(),
+        "checked_out": pool.checkedout(),
+        "overflow": pool.overflow(),
+        "total": pool.size() + pool.overflow()
+    }
