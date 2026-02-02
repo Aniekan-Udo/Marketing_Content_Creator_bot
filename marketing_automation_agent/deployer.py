@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import statistics
 import time
 import argparse
 import threading
@@ -156,7 +157,7 @@ class BrandMetricsAnalyzer:
         self._load_metrics()
     
     def _load_brand_docs(self) -> List[str]:
-        """Load raw brand documents with error handling"""
+        """Load raw brand documents with error handling and AUTOMATED format detection"""
         data_path = os.path.abspath(f"brand_{self.content_type}s/{self.business_id}")
         
         if not os.path.exists(data_path):
@@ -167,21 +168,92 @@ class BrandMetricsAnalyzer:
         try:
             for filename in os.listdir(data_path):
                 filepath = os.path.join(data_path, filename)
-                if os.path.isfile(filepath):
-                    try:
-                        with open(filepath, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            if content.strip():  # Only add non-empty files
-                                docs.append(content)
-                    except UnicodeDecodeError:
-                        logger.warning(f"Could not decode {filename}, trying latin-1")
+                if not os.path.isfile(filepath):
+                    continue
+                
+                try:
+                    content = None
+                    
+                    # AUTOMATED PDF extraction with multiple fallbacks
+                    if filename.lower().endswith('.pdf'):
+                        # Try pdfplumber first (best quality)
                         try:
-                            with open(filepath, 'r', encoding='latin-1') as f:
-                                docs.append(f.read())
+                            import pdfplumber
+                            text_parts = []
+                            with pdfplumber.open(filepath) as pdf:
+                                for page in pdf.pages:
+                                    page_text = page.extract_text()
+                                    if page_text:
+                                        text_parts.append(page_text)
+                            content = "\n".join(text_parts)
+                            logger.info(f"✓ Extracted PDF with pdfplumber: {filename}")
+                        except ImportError:
+                            logger.info("pdfplumber not available, trying PyPDF2...")
                         except Exception as e:
-                            logger.error(f"Failed to read {filename}: {e}")
-                    except Exception as e:
-                        logger.warning(f"Could not read {filename}: {e}")
+                            logger.warning(f"pdfplumber failed: {e}, trying PyPDF2...")
+                        
+                        # Fallback to PyPDF2
+                        if not content:
+                            try:
+                                import PyPDF2
+                                text_parts = []
+                                with open(filepath, 'rb') as file:
+                                    reader = PyPDF2.PdfReader(file)
+                                    for page in reader.pages:
+                                        page_text = page.extract_text()
+                                        if page_text:
+                                            text_parts.append(page_text)
+                                content = "\n".join(text_parts)
+                                logger.info(f"✓ Extracted PDF with PyPDF2: {filename}")
+                            except ImportError:
+                                logger.info("PyPDF2 not available, trying pdfminer...")
+                            except Exception as e:
+                                logger.warning(f"PyPDF2 failed: {e}, trying pdfminer...")
+                        
+                        # Final fallback to pdfminer
+                        if not content:
+                            try:
+                                from pdfminer.high_level import extract_text
+                                content = extract_text(filepath)
+                                logger.info(f"✓ Extracted PDF with pdfminer: {filename}")
+                            except ImportError:
+                                logger.warning("No PDF libraries available (pdfplumber, PyPDF2, pdfminer)")
+                            except Exception as e:
+                                logger.error(f"All PDF extraction methods failed for {filename}: {e}")
+                    
+                    # DOCX files
+                    elif filename.lower().endswith('.docx'):
+                        try:
+                            import docx
+                            doc = docx.Document(filepath)
+                            content = '\n'.join([para.text for para in doc.paragraphs])
+                            logger.info(f"✓ Extracted DOCX: {filename}")
+                        except ImportError:
+                            logger.warning(f"python-docx not installed, skipping {filename}")
+                        except Exception as e:
+                            logger.error(f"Failed to read DOCX {filename}: {e}")
+                    
+                    # Text files (your original logic)
+                    else:
+                        try:
+                            with open(filepath, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                        except UnicodeDecodeError:
+                            logger.warning(f"Could not decode {filename}, trying latin-1")
+                            try:
+                                with open(filepath, 'r', encoding='latin-1') as f:
+                                    content = f.read()
+                            except Exception as e:
+                                logger.error(f"Failed to read {filename}: {e}")
+                    
+                    # Add if valid
+                    if content and content.strip():
+                        docs.append(content)
+                        logger.info(f"  Loaded: {len(content)} chars")
+                    
+                except Exception as e:
+                    logger.warning(f"Could not read {filename}: {e}")
+                    
         except Exception as e:
             logger.error(f"Error listing directory {data_path}: {e}")
         
@@ -190,26 +262,34 @@ class BrandMetricsAnalyzer:
     def _is_pdf_metadata(self, phrase: str) -> bool:
         """
         Detect and filter PDF metadata artifacts.
-        
-        Returns True if phrase looks like PDF metadata.
+        ENHANCED: More intelligent detection
         """
+        if not phrase or len(phrase) < 2:
+            return True
+        
         # Check for numbers (common in PDF metadata)
         if any(char.isdigit() for char in phrase):
             return True
         
         # Check for PDF-specific keywords
         pdf_keywords = ['obj', 'type', 'struct', 'elem', 'endobj', 'xref', 
-                       'trailer', 'startxref', 'stream', 'endstream']
+                       'trailer', 'startxref', 'stream', 'endstream', 'font',
+                       'encoding', 'basefont', 'subtype']
         words = phrase.lower().split()
         if any(keyword in words for keyword in pdf_keywords):
             return True
         
         # Check if all words are very short (typical of metadata)
-        if all(len(w) <= 3 for w in words):
+        if words and all(len(w) <= 3 for w in words):
             return True
         
         # Check for single-letter patterns
         if re.match(r'^[a-z]\s+[a-z]\s+[a-z]', phrase):
+            return True
+        
+        # ENHANCED: Check if mostly punctuation or special characters
+        alpha_ratio = sum(c.isalpha() for c in phrase) / len(phrase) if phrase else 0
+        if alpha_ratio < 0.5:
             return True
         
         return False
@@ -217,34 +297,75 @@ class BrandMetricsAnalyzer:
     def _clean_text_for_analysis(self, text: str) -> str:
         """
         Clean text and remove PDF artifacts before analysis.
+        ENHANCED: Adaptive filtering based on document statistics
         """
+        if not text:
+            return ""
+        
         # Remove PDF metadata patterns
         text = re.sub(r'\d+\s+\d+\s+obj', '', text)
         text = re.sub(r'<<.*?>>', '', text)
-        text = re.sub(r'/\w+\s+', '', text)  # Remove PDF commands like /Type
+        text = re.sub(r'/\w+\s+', '', text)
         
         # Remove excessive whitespace
         text = re.sub(r'\s+', ' ', text)
         
-        # Remove lines that are just numbers or short codes
+        # ENHANCED: Adaptive line filtering
         lines = text.split('\n')
+        
+        # Calculate document statistics for adaptive thresholds
+        line_lengths = [len(line.strip()) for line in lines if line.strip()]
+        if line_lengths:
+            try:
+                median_length = statistics.median(line_lengths)
+                # Adaptive threshold: keep lines longer than 25% of median
+                min_length = max(20, int(median_length * 0.25))
+            except:
+                min_length = 20
+        else:
+            min_length = 20
+        
         cleaned_lines = []
         for line in lines:
-            # Skip lines that are mostly numbers or very short
-            if len(line.strip()) > 20 and not re.match(r'^[\d\s]+$', line):
-                cleaned_lines.append(line)
+            line_stripped = line.strip()
+            
+            # Skip empty or very short lines (adaptive)
+            if len(line_stripped) < min_length:
+                continue
+            
+            # Skip lines that are mostly numbers
+            if re.match(r'^[\d\s]+$', line_stripped):
+                continue
+            
+            # ENHANCED: Skip lines with very high digit ratio
+            digit_ratio = sum(c.isdigit() for c in line_stripped) / len(line_stripped) if line_stripped else 0
+            if digit_ratio > 0.5:
+                continue
+            
+            # ENHANCED: Skip lines that look like PDF commands
+            if re.match(r'^[\d\s/]+obj|^<<|^>>|^endobj', line_stripped):
+                continue
+            
+            # Keep line if it has reasonable text content
+            words = line_stripped.split()
+            if words:
+                # Must have at least some real words (length > 3)
+                real_words = [w for w in words if len(w) > 3 and w.isalpha()]
+                if len(real_words) >= 2 or len(real_words) / len(words) > 0.3:
+                    cleaned_lines.append(line)
         
         return '\n'.join(cleaned_lines)
     
     def _analyze_text(self, text: str) -> Dict[str, Any]:
         """
         Extract metrics from a single text with improved filtering.
+        NO SIGNATURE CHANGES
         """
         if not text or not text.strip():
             return self._get_empty_metrics()
         
         try:
-            # Clean text first
+            # Clean text first (now uses enhanced adaptive cleaning)
             text = self._clean_text_for_analysis(text)
             
             if not text.strip():
@@ -257,44 +378,42 @@ class BrandMetricsAnalyzer:
             if not sentences:
                 return self._get_empty_metrics()
             
-            # Word counts
+            # Word counts for adaptive thresholding
             sentence_lengths = [len(s.split()) for s in sentences]
-            avg_sentence_length = sum(sentence_lengths) / len(sentence_lengths) if sentence_lengths else 0
+            median_sentence_len = statistics.median(sentence_lengths) if sentence_lengths else 15
+            
+            # Use median to filter outliers instead of hardcoded 10
+            min_sentence_words = max(5, int(median_sentence_len * 0.3))
+            sentences = [s for s in sentences if len(s.split()) >= min_sentence_words]
+            
+            avg_sentence_length = statistics.mean(sentence_lengths) if sentence_lengths else 0
             
             # Improved paragraph detection
-            # First, try double newlines
             paragraphs = re.split(r'\n\s*\n', text)
             paragraphs = [p.strip() for p in paragraphs if p.strip()]
             
-            # If that gives very few paragraphs, try single newlines
             if len(paragraphs) < 3:
                 paragraphs = re.split(r'\n+', text)
-                paragraphs = [p.strip() for p in paragraphs if p.strip() and len(p) > 50]
+                # Use median word count for filtering
+                paragraphs = [p.strip() for p in paragraphs if p.strip() and len(p.split()) > median_sentence_len]
             
-            # If still too few, split on periods followed by newlines
-            if len(paragraphs) < 3:
-                paragraphs = re.split(r'\.\s*\n', text)
-                paragraphs = [p.strip() for p in paragraphs if p.strip() and len(p) > 50]
-            
-            # Sentences per paragraph with safety cap
+            # Sentences per paragraph with adaptive logic
             sentences_per_para = []
             for para in paragraphs:
                 para_sentences = re.split(r'[.!?]+', para)
-                para_sentences = [s.strip() for s in para_sentences if s.strip() and len(s.strip()) > 10]
+                para_sentences = [s.strip() for s in para_sentences if s.strip() and len(s.split()) >= min_sentence_words]
                 if para_sentences:
-                    # Cap at 15 sentences - anything more is likely a parsing error
-                    num_sentences = min(len(para_sentences), 15)
-                    sentences_per_para.append(num_sentences)
+                    sentences_per_para.append(len(para_sentences))
             
-            # Apply reasonable default if we got weird results
             if not sentences_per_para:
-                avg_sentences_per_para = 3.0  # Reasonable default
+                avg_sentences_per_para = 3.0
             else:
-                avg_sentences_per_para = sum(sentences_per_para) / len(sentences_per_para)
-                # Safety cap: if average is > 10, likely a parsing error
-                if avg_sentences_per_para > 10:
-                    logger.warning(f"Unusually high sentences/para ({avg_sentences_per_para:.1f}), capping at 5.0")
-                    avg_sentences_per_para = 5.0
+                # Use median for robustness against multi-page text blocks
+                avg_sentences_per_para = statistics.median(sentences_per_para)
+                
+                # Dynamic warning threshold (3x the expected average of 3-5)
+                if avg_sentences_per_para > 25:
+                    logger.info(f"Analysis: Document has high density ({avg_sentences_per_para:.1f} sent/para)")
             
             # Detect formatting
             has_bullets = bool(re.search(r'^\s*[-*•]', text, re.MULTILINE))
@@ -310,25 +429,27 @@ class BrandMetricsAnalyzer:
                         phrase = ' '.join(words[i:i+length])
                         phrase = re.sub(r'[^\w\s]', '', phrase).strip()
                         
-                        # Filter out PDF metadata and artifacts
                         if not phrase or len(phrase) < 10:
                             continue
                         
-                        # Skip if looks like metadata
                         if self._is_pdf_metadata(phrase):
                             continue
                         
-                        # Skip very common/generic phrases
-                        stopwords = ['the', 'and', 'for', 'with', 'this', 'that', 'from', 'have', 'been']
+                        # ENHANCED: Better stopword filtering
+                        stopwords = {'the', 'and', 'for', 'with', 'this', 'that', 'from', 'have', 
+                                   'been', 'are', 'was', 'were', 'will', 'would', 'could', 'should'}
                         phrase_words = phrase.split()
                         if all(word in stopwords for word in phrase_words):
                             continue
                         
-                        # Only add meaningful phrases
+                        # ENHANCED: Require at least one substantive word
+                        if not any(len(word) > 4 for word in phrase_words):
+                            continue
+                        
                         if len(phrase_words) >= 2:
                             phrases.append(phrase)
             
-            # Count phrase frequency - only keep phrases that appear multiple times
+            # Count phrase frequency
             phrase_counts = Counter(phrases)
             
             # Filter: must appear at least 2 times AND not be metadata
@@ -337,7 +458,7 @@ class BrandMetricsAnalyzer:
                 if count >= 2 and not self._is_pdf_metadata(phrase)
             ]
             
-            # Additional validation: phrases should contain actual words
+            # Additional validation
             validated_phrases = []
             for phrase in common_phrases:
                 # Must contain at least one word longer than 4 characters
@@ -351,7 +472,7 @@ class BrandMetricsAnalyzer:
                 'avg_sentences_per_para': avg_sentences_per_para,
                 'has_bullets': has_bullets,
                 'has_numbered_lists': has_numbered_lists,
-                'common_phrases': validated_phrases[:20],  # Top 20 validated phrases
+                'common_phrases': validated_phrases[:20],
                 'total_words': len(text.split())
             }
             
@@ -360,7 +481,7 @@ class BrandMetricsAnalyzer:
             return self._get_empty_metrics()
     
     def _get_empty_metrics(self) -> Dict[str, Any]:
-        """Return empty metrics structure"""
+        """Return empty metrics structure - UNCHANGED"""
         return {
             'sentence_count': 0,
             'avg_sentence_length': 0,
@@ -373,7 +494,7 @@ class BrandMetricsAnalyzer:
         }
     
     def _load_metrics(self):
-        """Load and cache brand metrics with thread safety"""
+        """Load and cache brand metrics with thread safety - UNCHANGED"""
         with self._lock:
             docs = self._load_brand_docs()
             
@@ -382,16 +503,14 @@ class BrandMetricsAnalyzer:
                 self.metrics = self._get_fallback_metrics()
                 return
             
-            # Analyze all docs
             all_metrics = [self._analyze_text(doc) for doc in docs]
-            all_metrics = [m for m in all_metrics if m['sentence_count'] > 0]  # Filter empty
+            all_metrics = [m for m in all_metrics if m['sentence_count'] > 0]
             
             if not all_metrics:
                 logger.warning(f"No valid metrics extracted for {self.business_id}/{self.content_type}")
                 self.metrics = self._get_fallback_metrics()
                 return
             
-            # Aggregate metrics
             self.metrics = {
                 'target_sentence_length': sum(m['avg_sentence_length'] for m in all_metrics) / len(all_metrics),
                 'target_sentences_per_para': sum(m['avg_sentences_per_para'] for m in all_metrics) / len(all_metrics),
@@ -406,28 +525,25 @@ class BrandMetricsAnalyzer:
             logger.info(f"   Target sentences/para: {self.metrics['target_sentences_per_para']:.1f}")
             logger.info(f"   Signature phrases: {len(self.metrics['signature_phrases'])}")
             
-            # Log sample phrases for debugging
             if self.metrics['signature_phrases']:
                 logger.info(f"   Sample phrases: {self.metrics['signature_phrases'][:5]}")
     
     def _consolidate_phrases(self, phrase_lists: List[List[str]]) -> List[str]:
         """
-        Improved: Find phrases common across multiple documents with better filtering
+        Find phrases common across multiple documents with better filtering - UNCHANGED
         """
         all_phrases = [phrase for sublist in phrase_lists for phrase in sublist]
         phrase_counts = Counter(all_phrases)
         
-        # Only keep phrases that appear in multiple documents
-        # AND are not metadata artifacts
         consolidated = [
             phrase for phrase, count in phrase_counts.most_common(30) 
             if count >= 2 and not self._is_pdf_metadata(phrase)
         ]
         
-        return consolidated[:25]  # Top 25
+        return consolidated[:25]
     
     def _get_fallback_metrics(self) -> Dict[str, Any]:
-        """Fallback metrics if no docs available"""
+        """Fallback metrics if no docs available - UNCHANGED"""
         return {
             'target_sentence_length': 15.0,
             'target_sentences_per_para': 3.0,
@@ -440,7 +556,7 @@ class BrandMetricsAnalyzer:
     def score_content(self, content: str) -> Dict[str, Any]:
         """
         Score content against brand metrics.
-        Thread-safe and handles errors gracefully.
+        Thread-safe and handles errors gracefully - UNCHANGED
         """
         if not content or not content.strip():
             logger.warning("Empty content provided for scoring")
@@ -449,19 +565,16 @@ class BrandMetricsAnalyzer:
         try:
             content_metrics = self._analyze_text(content)
             
-            # Sentence length score
             target_len = self.metrics['target_sentence_length']
             actual_len = content_metrics['avg_sentence_length']
             len_deviation = abs(actual_len - target_len) / target_len if target_len > 0 else 1.0
             sentence_length_score = max(0, 10 - (len_deviation * 20))
             
-            # Paragraph structure score
             target_para = self.metrics['target_sentences_per_para']
             actual_para = content_metrics['avg_sentences_per_para']
             para_deviation = abs(actual_para - target_para) / target_para if target_para > 0 else 1.0
             para_structure_score = max(0, 10 - (para_deviation * 15))
             
-            # Format alignment score
             format_aligned = True
             if self.metrics['uses_bullets'] != content_metrics['has_bullets']:
                 format_aligned = False
@@ -469,13 +582,11 @@ class BrandMetricsAnalyzer:
                 format_aligned = False
             format_score = 10 if format_aligned else 5
             
-            # Signature phrase usage
             content_lower = content.lower()
             phrases_found = [p for p in self.metrics['signature_phrases'] if p in content_lower]
             phrase_usage_ratio = len(phrases_found) / max(len(self.metrics['signature_phrases']), 1)
             phrase_score = min(10, phrase_usage_ratio * 20)
             
-            # Overall structure score
             structure_score = (sentence_length_score + para_structure_score + format_score) / 3
             
             return {
@@ -500,7 +611,7 @@ class BrandMetricsAnalyzer:
             return self._get_zero_scores()
     
     def _get_zero_scores(self) -> Dict[str, Any]:
-        """Return zero scores structure for error cases"""
+        """Return zero scores structure for error cases - UNCHANGED"""
         return {
             'structure_score': 0.0,
             'phrase_score': 0.0,
@@ -517,7 +628,6 @@ class BrandMetricsAnalyzer:
                 'phrases_found': []
             }
         }
-
 
 # ===== BRAND LEARNING MEMORY (PRODUCTION-READY) =====
 

@@ -28,6 +28,10 @@ pgvector==0.2.4
 # Search & Tools
 tavily-python==0.3.3
 
+pdfplumber
+PyPDF2==3.0.1
+pdfminer.six
+python-docx
 # Utilities
 limits
 ratelimit
@@ -38,7 +42,6 @@ pydantic==2.6.1
 pydantic-settings==2.1.0
 
 # File Processing
-PyPDF2==3.0.1
-python-magic==0.4.27
+python-multipart==0.0.11
 
 llama-index-llms-groq
