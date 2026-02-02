@@ -56,15 +56,15 @@ POSTGRES_ASYNC_URI = os.getenv("POSTGRES_ASYNC_URI")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
 if POSTGRES_URI:
-    logger.info(f"✅ Sync URI loaded")
+    logger.info(f"Sync URI loaded")
 else:
-    logger.error("❌ POSTGRES_URI is None or empty")
+    logger.error("POSTGRES_URI is None or empty")
     raise ValueError("POSTGRES_URI not found in environment")
 
 if POSTGRES_ASYNC_URI:
-    logger.info(f"✅ Async URI loaded successfully")
+    logger.info(f"Async URI loaded successfully")
 else:
-    logger.error("❌ POSTGRES_ASYNC_URI is None or empty")
+    logger.error("POSTGRES_ASYNC_URI is None or empty")
     raise ValueError("POSTGRES_ASYNC_URI not found in environment")
 
 if not GROQ_API_KEY:
@@ -204,7 +204,7 @@ class BrandMetricsAnalyzer:
             'sample_count': len(docs)
         }
         
-        logger.info(f"📊 Metrics loaded: {self.business_id}/{self.content_type}")
+        logger.info(f"Metrics loaded: {self.business_id}/{self.content_type}")
         logger.info(f"   Target sentence length: {self.metrics['target_sentence_length']:.1f} words")
         logger.info(f"   Target sentences/para: {self.metrics['target_sentences_per_para']:.1f}")
         logger.info(f"   Signature phrases: {len(self.metrics['signature_phrases'])}")
@@ -333,7 +333,7 @@ class BrandLearningMemory:
             conn.commit()
             cursor.close()
             conn.close()
-            logger.info(f"✅ Learning memory initialized: {self.table_name}")
+            logger.info(f"Learning memory initialized: {self.table_name}")
             
         except Exception as e:
             logger.error(f"Failed to init learning memory: {e}")
@@ -464,21 +464,21 @@ class BrandLearningMemory:
         summary = f"\n=== LEARNED PATTERNS FOR {content_type.upper()} ===\n\n"
         
         if approved:
-            summary += "✅ SUCCESSFUL APPROACHES (Human-Approved or High Auto-Score):\n"
+            summary += "SUCCESSFUL APPROACHES (Human-Approved or High Auto-Score):\n"
             for i, pattern in enumerate(approved, 1):
                 data = pattern.get('pattern_data', {})
                 if isinstance(data, str):
                     data = json.loads(data)
                 
                 score_display = f"{pattern.get('human_score', pattern.get('auto_score', 0)):.1f}/10"
-                approval_type = "👤 Human" if pattern.get('human_approved') else "🤖 Auto"
+                approval_type = "👤 Human" if pattern.get('human_approved') else "Auto"
                 
                 summary += f"{i}. {approval_type} Score: {score_display}\n"
                 summary += f"   Creative angle: {data.get('creative_angle', 'N/A')}\n"
                 summary += f"   What worked: {pattern.get('human_feedback') or data.get('what_worked', 'Good alignment')}\n\n"
         
         if rejected:
-            summary += "\n❌ AVOID THESE APPROACHES (Rejected):\n"
+            summary += "\nAVOID THESE APPROACHES (Rejected):\n"
             for i, pattern in enumerate(rejected, 1):
                 data = pattern.get('pattern_data', {})
                 if isinstance(data, str):
@@ -555,21 +555,21 @@ class Marketing_Rag_System:
                 parsed = urlparse(raw_uri)
                 
                 logger.info("="*80)
-                logger.info(f"📁 Building index for: {self.business_id} / {self.content_type}")
-                logger.info(f"📂 Data path: {self.data_path}")
-                logger.info(f"📊 Table name: {self.table_name}")
+                logger.info(f"Building index for: {self.business_id} / {self.content_type}")
+                logger.info(f"Data path: {self.data_path}")
+                logger.info(f"Table name: {self.table_name}")
                 
                 if not os.path.exists(self.data_path):
-                    logger.error(f"❌ Data path does not exist: {self.data_path}")
+                    logger.error(f"Data path does not exist: {self.data_path}")
                     raise ValueError(f"Data path not found: {self.data_path}")
                 
                 files = os.listdir(self.data_path)
-                logger.info(f"📄 Files found: {len(files)}")
+                logger.info(f"Files found: {len(files)}")
                 for f in files[:5]:
                     logger.info(f"   - {f}")
                 
                 if not files:
-                    logger.warning(f"⚠️  No files in {self.data_path}")
+                    logger.warning(f"No files in {self.data_path}")
                     return None
                 
                 logger.info("="*80)
@@ -599,7 +599,7 @@ class Marketing_Rag_System:
                         vector_store=self.vector_store,
                         embed_model=Settings.embed_model
                     )
-                    logger.info(f"✅ Loaded existing index: {self.table_name}")
+                    logger.info(f"Loaded existing index: {self.table_name}")
                     
                     try:
                         retriever = index.as_retriever(similarity_top_k=3)
@@ -621,7 +621,7 @@ class Marketing_Rag_System:
                     logger.info(f"Loaded {len(documents)} documents")
                     
                     if not documents:
-                        logger.error(f"❌ No documents loaded from {self.data_path}")
+                        logger.error(f"No documents loaded from {self.data_path}")
                         return None
                     
                     logger.info("🏗️  Building vector index...")
@@ -630,13 +630,13 @@ class Marketing_Rag_System:
                         storage_context=storage_context,
                         show_progress=True
                     )
-                    logger.info(f"✅ Index built successfully: {self.table_name}")
+                    logger.info(f"Index built successfully: {self.table_name}")
                 
                 logger.info("="*80)
                 return index
                 
             except Exception as e:
-                logger.error(f"❌ Index build failed: {e}")
+                logger.error(f"Index build failed: {e}")
                 raise
 
 # ===== KNOWLEDGE BASE =====
@@ -746,16 +746,16 @@ class KBQueryTool(BaseTool):
             response = style_guide.query(query)
             response_str = str(response)
             
-            logger.info(f"✅ KB Response: {len(response_str)} chars")
+            logger.info(f"KB Response: {len(response_str)} chars")
             
             if not response_str or response_str.strip() == "":
-                logger.warning("⚠️  Empty KB response")
+                logger.warning("Empty KB response")
                 return self._get_fallback_response(content_type)
             
             return response_str
             
         except Exception as e:
-            logger.error(f"❌ KB query failed: {e}", exc_info=True)
+            logger.error(f"KB query failed: {e}", exc_info=True)
             return self._get_fallback_response(content_type)
     
     def _get_fallback_response(self, content_type: str) -> str:
@@ -814,7 +814,7 @@ class LearningMemoryTool(BaseTool):
                     if isinstance(data, str):
                         data = json.loads(data)
                     
-                    approval_type = "👤 Human" if p.get('human_approved') else "🤖 Auto"
+                    approval_type = "👤 Human" if p.get('human_approved') else "Auto"
                     score = p.get('human_score') or p.get('auto_score', 0)
                     result += f"- {approval_type} | {data.get('creative_angle', 'N/A')} (Score: {score:.1f}/10)\n"
                 return result
@@ -881,7 +881,7 @@ class SaveLearningTool(BaseTool):
             )
             
             approval_status = "human-approved" if human_approved else ("auto-approved" if auto_score >= 8.0 else "needs improvement")
-            return f"✅ Learning saved: {creative_angle} ({approval_status}, score: {auto_score:.1f})"
+            return f"Learning saved: {creative_angle} ({approval_status}, score: {auto_score:.1f})"
             
         except Exception as e:
             logger.error(f"Failed to save learning: {e}")
@@ -908,7 +908,7 @@ class BrandMetricsTool(BaseTool):
             if action == "get_metrics":
                 metrics = self.analyzer.metrics
                 
-                result = "📊 BRAND METRICS (GROUND TRUTH):\n\n"
+                result = "BRAND METRICS (GROUND TRUTH):\n\n"
                 result += f"Target Sentence Length: {metrics['target_sentence_length']:.1f} words\n"
                 result += f"Target Sentences/Paragraph: {metrics['target_sentences_per_para']:.1f}\n"
                 result += f"Uses Bullet Points: {metrics['uses_bullets']}\n"
@@ -954,7 +954,7 @@ class ContentScoringTool(BaseTool):
         try:
             scores = self.analyzer.score_content(content)
             
-            result = "🤖 AUTOMATIC STRUCTURAL SCORES (Objective Measurements):\n\n"
+            result = "AUTOMATIC STRUCTURAL SCORES (Objective Measurements):\n\n"
             result += f"Overall Structure Score: {scores['structure_score']}/10\n"
             result += f"Signature Phrase Score: {scores['phrase_score']}/10\n\n"
             
@@ -1020,7 +1020,7 @@ def save_human_feedback(business_id: str, content_type: str, creative_angle: str
     )
     
     status = "Approved" if human_approved else "Rejected"
-    logger.info(f"✅ Human feedback saved: {creative_angle} - {status} ({human_score}/10)")
+    logger.info(f"Human feedback saved: {creative_angle} - {status} ({human_score}/10)")
     
     return {
         "success": True,
@@ -1078,20 +1078,20 @@ def collect_feedback_interactive_cli(content: str, auto_score: float,
     Use this during development/testing.
     """
     print("\n" + "="*80)
-    print("📝 GENERATED CONTENT")
+    print("GENERATED CONTENT")
     print("="*80)
     print(content)
     print("="*80)
-    print(f"\n🤖 Automatic Score: {auto_score}/10")
-    print(f"🎨 Creative Angle: {creative_angle}")
-    print(f"🏢 Business: {business_id}")
+    print(f"\nAutomatic Score: {auto_score}/10")
+    print(f"Creative Angle: {creative_angle}")
+    print(f"Business: {business_id}")
     
     print("\n" + "-"*80)
     print("👤 HUMAN FEEDBACK")
     print("-"*80)
     
-    human_approved = input("✅ Approve this content? (y/n): ").lower() == 'y'
-    human_score = float(input("📊 Your score (0-10): "))
+    human_approved = input("Approve this content? (y/n): ").lower() == 'y'
+    human_score = float(input("Your score (0-10): "))
     
     print("\n💬 Feedback (what worked or what failed):")
     print("   (Press Enter twice when done)")
@@ -1114,7 +1114,7 @@ def collect_feedback_interactive_cli(content: str, auto_score: float,
     )
     
     print("\n" + "="*80)
-    print(f"✅ {result['message']}")
+    print(f"{result['message']}")
     print("="*80)
     print("💡 This feedback will be used to improve future generations.")
     print("="*80 + "\n")
@@ -1181,9 +1181,9 @@ Provide 10-15 diverse factual findings.""",
             backstory="""You're a creative strategist who makes content memorable.
 
 CRITICAL BALANCE:
-✅ Stay true to brand voice (tone, values, vocabulary)
-✅ Find fresh perspectives competitors haven't used
-✅ Make it scroll-stopping while staying authentic
+Stay true to brand voice (tone, values, vocabulary)
+Find fresh perspectives competitors haven't used
+Make it scroll-stopping while staying authentic
 
 You review past learnings and propose 2-3 creative angles that are:
 - Fresh and haven't been overused
@@ -1253,19 +1253,19 @@ STEP 2 - Query KB (4 times):
 
 OUTPUT:
 
-📊 STRUCTURAL METRICS:
+STRUCTURAL METRICS:
 - Target sentence length: [X] words (±2 allowed)
 - Target sentences/paragraph: [X] (±1 allowed)
 - Format: [blog/email/social structure]
 - Signature phrases: [list top 10]
 
-🎨 TONE & STYLE:
+TONE & STYLE:
 - Primary tone: [descriptors]
 - Opening pattern: [how to start]
 - Closing pattern: [how to end]
 - Perspective: [you/we/they]
 
-⚠️ CRITICAL FORMAT RULES:
+CRITICAL FORMAT RULES:
 - Content type: {format}
 - Structural requirements: [specific to type]
 - What to avoid: [format mistakes]""",
@@ -1339,10 +1339,10 @@ Format Type: [Blog/Email/Social]""",
 CRITICAL: You MUST use the score_content tool. Don't guess at measurements.
 
 Scoring:
-- 9.0-10: Excellent ✅
-- 8.0-8.9: Good ✅
-- 7.0-7.9: Needs revision 🔄
-- <7.0: Major issues ❌
+- 9.0-10: Excellent
+- 8.0-8.9: Good
+- 7.0-7.9: Needs revision
+- <7.0: Major issues
 
 Always save learnings.""",
             tools=[scoring_tool, learning_tool, save_learning_tool, kb_tool],
@@ -1354,7 +1354,7 @@ Always save learnings.""",
         reviewer_task = Task(
             description="""Review content with HYBRID scoring.
 
-⚠️ CRITICAL: You MUST use the score_content tool. DO NOT try to count manually.
+CRITICAL: You MUST use the score_content tool. DO NOT try to count manually.
 
 STEP 1 - AUTOMATIC SCORING (50% weight):
 
@@ -1394,10 +1394,10 @@ STEP 3 - FINAL SCORE:
 FINAL_SCORE = (AUTOMATIC_SCORE × 0.5) + (LLM_SCORE × 0.5)
 
 STEP 4 - DECISION:
-- >= 9.0: APPROVED ✅
-- 8.0-8.9: APPROVED ✅ (minor suggestions)
-- 7.0-7.9: REVISION NEEDED 🔄 (specific fixes)
-- < 7.0: MAJOR REVISION ❌ (detailed issues)
+- >= 9.0: APPROVED
+- 8.0-8.9: APPROVED (minor suggestions)
+- 7.0-7.9: REVISION NEEDED (specific fixes)
+- < 7.0: MAJOR REVISION (detailed issues)
 
 STEP 5 - IDENTIFY ISSUES:
 
@@ -1521,10 +1521,10 @@ if __name__ == "__main__":
                        help="Collect human feedback after generation")
     args = parser.parse_args()
     
-    print(f"\n🚀 Starting Hybrid Reflection Content Generation")
-    print(f"📋 Topic: {args.topic}")
-    print(f"📝 Format: {args.format}")
-    print(f"🏢 Business: {args.business_id}")
+    print(f"\nStarting Hybrid Reflection Content Generation")
+    print(f"Topic: {args.topic}")
+    print(f"Format: {args.format}")
+    print(f"Business: {args.business_id}")
     print("="*60 + "\n")
     
     crew, kb, learning_memory, metrics_analyzer = get_crew(
@@ -1536,13 +1536,13 @@ if __name__ == "__main__":
     
     # Show learning summary
     content_type = "blog" if "blog" in args.format.lower() else "social" if "social" in args.format.lower() else "ad"
-    print("\n📚 LEARNING MEMORY SUMMARY")
+    print("\nLEARNING MEMORY SUMMARY")
     print("="*60)
     print(learning_memory.get_learning_summary(content_type))
     print("="*60 + "\n")
     
     # Show brand metrics
-    print("\n📊 BRAND METRICS (GROUND TRUTH)")
+    print("\nBRAND METRICS (GROUND TRUTH)")
     print("="*60)
     print(f"Target Sentence Length: {metrics_analyzer.metrics['target_sentence_length']:.1f} words")
     print(f"Target Sentences/Paragraph: {metrics_analyzer.metrics['target_sentences_per_para']:.1f}")
@@ -1557,7 +1557,7 @@ if __name__ == "__main__":
     })
     
     print("\n" + "="*60)
-    print("✅ GENERATION COMPLETE")
+    print("GENERATION COMPLETE")
     print("="*60)
     print(result)
     print("\n" + "="*60)

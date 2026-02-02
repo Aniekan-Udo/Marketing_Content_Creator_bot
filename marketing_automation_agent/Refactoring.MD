@@ -5,17 +5,17 @@
 ### Complexity Score: 7/10
 
 **What's Good:**
-✅ Clear separation of concerns (API, Core Logic, Database)
-✅ Thread-safe caching implemented
-✅ Hybrid learning system (auto + human)
-✅ Comprehensive error handling
+- Clear separation of concerns (API, Core Logic, Database)
+- Thread-safe caching implemented
+- Hybrid learning system (auto + human)
+- Comprehensive error handling
 
 **What Needs Work:**
-❌ Monolithic files (800+ lines each)
-❌ No async/await (blocks on I/O)
-❌ Missing test coverage
-❌ Tight coupling in some areas
-❌ Configuration hardcoded
+- Monolithic files (800+ lines each)
+- No async/await (blocks on I/O)
+- Missing test coverage
+- Tight coupling in some areas
+- Configuration hardcoded
 
 ---
 
@@ -726,11 +726,11 @@ Need fast, reliable LLM for 5-agent pipeline (15+ API calls per generation)
 Use Groq with Llama-3.3-70B
 
 ## Consequences
-✅ Very fast inference (< 1s per call)
-✅ Good quality for marketing content
-✅ Affordable pricing
-❌ Rate limits (may need queuing)
-❌ Vendor lock-in
+- Very fast inference (< 1s per call)
+- Good quality for marketing content
+- Affordable pricing
+- Rate limits (may need queuing)
+- Vendor lock-in
 
 ## Alternatives Considered
 - OpenAI GPT-4: Too expensive

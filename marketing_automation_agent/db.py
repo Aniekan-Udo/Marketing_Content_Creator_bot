@@ -7,25 +7,18 @@ Production-ready database models and configuration with:
 """
 
 import os
-from dotenv import load_dotenv
-from sqlalchemy import create_engine, MetaData, String, event
-from sqlalchemy.orm import Mapped, mapped_column, sessionmaker, Session
-from sqlalchemy.pool import QueuePool
-from typing import Optional
 from datetime import datetime
 from contextlib import contextmanager
-import structlog
+from typing import Optional
 
-from sqlalchemy import (
-    String, Integer, Boolean, DateTime, Text, DECIMAL, 
-    ForeignKey, CheckConstraint, func
-)
-from sqlalchemy.orm import (
-    DeclarativeBase, relationship
-)
+import structlog
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, MetaData, String, Integer, Boolean, DateTime, Text, DECIMAL, ForeignKey, CheckConstraint, func, event
+from sqlalchemy.orm import Mapped, mapped_column, sessionmaker, Session, DeclarativeBase, relationship
+from sqlalchemy.pool import QueuePool
 from sqlalchemy.dialects.postgresql import JSONB, INET
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from sqlalchemy.exc import OperationalError, DatabaseError
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # Load environment variables
 load_dotenv()
@@ -320,9 +313,9 @@ def create_db_engine():
 # Create engine ONCE at module import
 try:
     engine = create_db_engine()
-    logger.info("✅ Database engine created successfully")
+    logger.info("Database engine created successfully")
 except Exception as e:
-    logger.error(f"❌ Failed to create database engine: {e}")
+    logger.error(f"Failed to create database engine: {e}")
     raise
 
 
@@ -352,10 +345,10 @@ def init_db():
     try:
         logger.info("Initializing database...")
         Model.metadata.create_all(engine)
-        logger.info("✅ Database tables created successfully")
+        logger.info("Database tables created successfully")
         return True
     except Exception as e:
-        logger.error(f"❌ Database initialization failed: {e}", exc_info=True)
+        logger.error(f"Database initialization failed: {e}", exc_info=True)
         raise
 
 
@@ -465,7 +458,7 @@ def get_or_create_user(business_id: str, email: str = None, session: Session = N
         session.commit()
         session.refresh(user)
         
-        logger.info(f"✅ Created new user: {business_id}")
+        logger.info(f"Created new user: {business_id}")
         return user
         
     except Exception as e:

@@ -10,7 +10,7 @@ print(f"Testing connection to: {uri[:50]}...")
 
 try:
     conn = psycopg2.connect(uri)
-    print("✅ Connection successful!")
+    print("Connection successful!")
     conn.close()
 except Exception as e:
-    print(f"❌ Connection failed: {e}")
+    print(f"Connection failed: {e}")

@@ -1,55 +1,37 @@
-
 import os
+import re
+import json
+import time
 import argparse
 import threading
-import time
 from pathlib import Path
-from typing import Dict, Optional, Any, List
-import json
-import re
 from datetime import datetime
-from pydantic import Field, BaseModel
-from collections import defaultdict
 from functools import wraps
-
-
-from threading import Lock
-from collections import Counter
-
-import psycopg2
-import psycopg2.extras
+from ratelimit import limits, sleep_and_retry
+from typing import Dict, Optional, Any, List
+from collections import defaultdict, Counter
+from threading import Lock, RLock
 from urllib.parse import urlparse
-import json
-from typing import Optional, List, Dict, Any
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+from pydantic import Field
 
 import structlog
-from structlog import get_logger
-from structlog.stdlib import LoggerFactory
-from structlog.dev import ConsoleRenderer
-from structlog.processors import TimeStamper, StackInfoRenderer, format_exc_info, add_log_level, JSONRenderer
-
-from threading import Lock, RLock
+import psycopg2
+import psycopg2.extras
 from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, RetryError
+from circuitbreaker import circuit
 
+# AI and Data Tools
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tools import BaseTool
-
+from tavily import TavilyClient
 from llama_index.core import Settings, SimpleDirectoryReader, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SemanticSplitterNodeParser, SimpleNodeParser
 from llama_index.vector_stores.postgres import PGVectorStore
 from llama_index.embeddings.fastembed import FastEmbedEmbedding
 
-from tavily import TavilyClient
-from tenacity import (
-    retry, 
-    stop_after_attempt, 
-    wait_exponential, 
-    retry_if_exception_type,
-    RetryError
-)
-
-# Database imports with retry logic
+# Local Imports
 from db import (
     ReviewerLearning,
     get_db_session,
@@ -59,165 +41,56 @@ from db import (
     get_or_create_user as db_get_or_create_user
 )
 
+# Load environment variables
+load_dotenv()
+
 # ===== LOGGING SETUP =====
 structlog.configure(
     processors=[
-        add_log_level,
-        TimeStamper(fmt="iso"),
-        StackInfoRenderer(),
-        format_exc_info,
-        JSONRenderer() if "JSON" in os.getenv("LOG_FORMAT", "console") else ConsoleRenderer()
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.JSONRenderer() if "JSON" in os.getenv("LOG_FORMAT", "console") else structlog.dev.ConsoleRenderer()
     ],
-    logger_factory=LoggerFactory(),
+    logger_factory=structlog.stdlib.LoggerFactory(),
     wrapper_class=structlog.stdlib.BoundLogger,
     cache_logger_on_first_use=True,
 )
 
-logger = get_logger("Marketing content creation bot")
+logger = structlog.get_logger("Marketing_Agent")
 
-# ===== ENVIRONMENT VARIABLES =====
-load_dotenv()
-
+# ===== SERVICE CONFIGURATION =====
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 POSTGRES_URI = os.getenv("POSTGRES_URI")
 POSTGRES_ASYNC_URI = os.getenv("POSTGRES_ASYNC_URI")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
 # Validate critical environment variables
-if not POSTGRES_URI:
-    logger.error("❌ POSTGRES_URI is None or empty")
-    raise ValueError("POSTGRES_URI not found in environment")
-
-if not POSTGRES_ASYNC_URI:
-    logger.error("❌ POSTGRES_ASYNC_URI is None or empty")
-    raise ValueError("POSTGRES_ASYNC_URI not found in environment")
-
-if not GROQ_API_KEY:
-    logger.error("GROQ_API_KEY not found")
-    raise ValueError("GROQ_API_KEY not found")
+if not POSTGRES_URI or not POSTGRES_ASYNC_URI or not GROQ_API_KEY:
+    error_msg = "Critical environment variables (POSTGRES_URI, GROQ_API_KEY) missing"
+    logger.error(f"Error: {error_msg}")
+    raise ValueError(error_msg)
 
 if not TAVILY_API_KEY:
     logger.warning("TAVILY_API_KEY not found - web search disabled")
 
-logger.info("✅ Environment variables validated")
+logger.info("Environment variables validated")
 
-# ===== RATE LIMITING =====
+# ===== CUSTOM DECORATORS =====
 
-class RateLimiter:
-    """
-    Token bucket rate limiter for API calls.
-    Thread-safe implementation.
-    """
-    
-    def __init__(self, rate: int, per: float = 60.0):
-        """
-        Args:
-            rate: Number of requests allowed
-            per: Time period in seconds (default: 60 = 1 minute)
-        """
-        self.rate = rate
-        self.per = per
-        self.allowance = rate
-        self.last_check = time.time()
-        self.lock = Lock()
-    
-    def __call__(self, func):
-        """Decorator for rate limiting"""
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            with self.lock:
-                current = time.time()
-                time_passed = current - self.last_check
-                self.last_check = current
-                
-                # Add tokens based on time passed
-                self.allowance += time_passed * (self.rate / self.per)
-                
-                if self.allowance > self.rate:
-                    self.allowance = self.rate
-                
-                if self.allowance < 1.0:
-                    sleep_time = (1.0 - self.allowance) * (self.per / self.rate)
-                    logger.warning(f"Rate limit reached, sleeping for {sleep_time:.2f}s")
-                    time.sleep(sleep_time)
-                    self.allowance = 0.0
-                else:
-                    self.allowance -= 1.0
-            
-            return func(*args, **kwargs)
-        return wrapper
+# Rate limiters (30 calls/min for Groq, 20 for Tavily)
+groq_rate_limit = limits(calls=30, period=60)
+tavily_rate_limit = limits(calls=20, period=60)
 
+# Circuit breakers
+groq_circuit_breaker = circuit(failure_threshold=5, recovery_timeout=60.0)
+tavily_circuit_breaker = circuit(failure_threshold=3, recovery_timeout=30.0)
+db_circuit_breaker = circuit(failure_threshold=5, recovery_timeout=30.0)
 
-
-# Rate limiters for different services
-groq_rate_limiter = RateLimiter(rate=30, per=60)  # 30 calls per minute
-tavily_rate_limiter = RateLimiter(rate=20, per=60)  # 20 calls per minute
-
-
-# ===== CIRCUIT BREAKER =====
-
-class CircuitBreaker:
-    """
-    Circuit breaker pattern for external service calls.
-    Prevents cascading failures.
-    """
-    
-    def __init__(self, failure_threshold: int = 5, timeout: float = 60.0):
-        """
-        Args:
-            failure_threshold: Number of failures before opening circuit
-            timeout: Seconds to wait before attempting to close circuit
-        """
-        self.failure_threshold = failure_threshold
-        self.timeout = timeout
-        self.failure_count = 0
-        self.last_failure_time = None
-        self.state = "closed"  # closed, open, half_open
-        self.lock = Lock()
-    
-    def call(self, func, *args, **kwargs):
-        """Execute function with circuit breaker protection"""
-        with self.lock:
-            if self.state == "open":
-                if time.time() - self.last_failure_time >= self.timeout:
-                    self.state = "half_open"
-                    logger.info("Circuit breaker: half-open, attempting call")
-                else:
-                    raise Exception(f"Circuit breaker OPEN - service unavailable")
-        
-        try:
-            result = func(*args, **kwargs)
-            
-            with self.lock:
-                if self.state == "half_open":
-                    self.state = "closed"
-                    self.failure_count = 0
-                    logger.info("Circuit breaker: closed - service recovered")
-            
-            return result
-            
-        except Exception as e:
-            with self.lock:
-                self.failure_count += 1
-                self.last_failure_time = time.time()
-                
-                if self.failure_count >= self.failure_threshold:
-                    self.state = "open"
-                    logger.error(f"Circuit breaker OPEN after {self.failure_count} failures")
-                
-            raise
-
-
-# Circuit breakers for external services
-groq_circuit_breaker = CircuitBreaker(failure_threshold=5, timeout=60.0)
-tavily_circuit_breaker = CircuitBreaker(failure_threshold=3, timeout=30.0)
-db_circuit_breaker = CircuitBreaker(failure_threshold=5, timeout=30.0)
-
-logger = structlog.get_logger(__name__)
 # ===== LOCKS FOR THREAD SAFETY =====
 _init_locks: Dict[str, RLock] = {}
 _locks_lock = RLock()
-
 
 def get_init_lock(business_id: str) -> RLock:
     """Get or create a reentrant lock for business_id"""
@@ -229,12 +102,14 @@ def get_init_lock(business_id: str) -> RLock:
 
 # ===== LLM CONFIGURATION WITH RETRY AND RATE LIMITING =====
 
+@sleep_and_retry
+@groq_rate_limit
+@groq_circuit_breaker
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
     reraise=True
 )
-@groq_rate_limiter
 def get_llm(temperature=0.7):
     """
     Get configured LLM instance with retry logic and rate limiting.
@@ -246,19 +121,16 @@ def get_llm(temperature=0.7):
         LLM: Configured LLM instance
     """
     if not GROQ_API_KEY:
-        logger.error("❌ GROQ_API_KEY is None or empty!")
+        logger.error("GROQ_API_KEY is None or empty!")
         raise ValueError("GROQ_API_KEY not found")
     
     try:
-        def _create_llm():
-            return LLM(
-                model="groq/llama-3.3-70b-versatile",
-                api_key=GROQ_API_KEY,
-                temperature=temperature
-            )
-        
-        llm = groq_circuit_breaker.call(_create_llm)
-        logger.info(f"✅ LLM configured: llama-3.3-70b-versatile (temp={temperature})")
+        llm = LLM(
+            model="groq/llama-3.3-70b-versatile",
+            api_key=GROQ_API_KEY,
+            temperature=temperature
+        )
+        logger.info(f"LLM configured: llama-3.3-70b-versatile (temp={temperature})")
         return llm
         
     except Exception as e:
@@ -274,12 +146,6 @@ class BrandMetricsAnalyzer:
     Provides ground truth for automatic scoring.
     
     Thread-safe with caching.
-    
-    FIXES:
-    - Filters PDF metadata and artifacts
-    - Improved paragraph detection
-    - Safety caps on extreme values
-    - Better phrase extraction
     """
     
     def __init__(self, business_id: str, content_type: str):
@@ -323,9 +189,9 @@ class BrandMetricsAnalyzer:
     
     def _is_pdf_metadata(self, phrase: str) -> bool:
         """
-        ✅ NEW: Detect and filter PDF metadata artifacts
+        Detect and filter PDF metadata artifacts.
         
-        Returns True if phrase looks like PDF metadata
+        Returns True if phrase looks like PDF metadata.
         """
         # Check for numbers (common in PDF metadata)
         if any(char.isdigit() for char in phrase):
@@ -350,7 +216,7 @@ class BrandMetricsAnalyzer:
     
     def _clean_text_for_analysis(self, text: str) -> str:
         """
-        ✅ NEW: Clean text and remove PDF artifacts before analysis
+        Clean text and remove PDF artifacts before analysis.
         """
         # Remove PDF metadata patterns
         text = re.sub(r'\d+\s+\d+\s+obj', '', text)
@@ -372,13 +238,13 @@ class BrandMetricsAnalyzer:
     
     def _analyze_text(self, text: str) -> Dict[str, Any]:
         """
-        ✅ FIXED: Extract metrics from a single text with improved filtering
+        Extract metrics from a single text with improved filtering.
         """
         if not text or not text.strip():
             return self._get_empty_metrics()
         
         try:
-            # ✅ Clean text first
+            # Clean text first
             text = self._clean_text_for_analysis(text)
             
             if not text.strip():
@@ -395,7 +261,7 @@ class BrandMetricsAnalyzer:
             sentence_lengths = [len(s.split()) for s in sentences]
             avg_sentence_length = sum(sentence_lengths) / len(sentence_lengths) if sentence_lengths else 0
             
-            # ✅ IMPROVED PARAGRAPH DETECTION
+            # Improved paragraph detection
             # First, try double newlines
             paragraphs = re.split(r'\n\s*\n', text)
             paragraphs = [p.strip() for p in paragraphs if p.strip()]
@@ -410,22 +276,22 @@ class BrandMetricsAnalyzer:
                 paragraphs = re.split(r'\.\s*\n', text)
                 paragraphs = [p.strip() for p in paragraphs if p.strip() and len(p) > 50]
             
-            # ✅ SENTENCES PER PARAGRAPH WITH SAFETY CAP
+            # Sentences per paragraph with safety cap
             sentences_per_para = []
             for para in paragraphs:
                 para_sentences = re.split(r'[.!?]+', para)
                 para_sentences = [s.strip() for s in para_sentences if s.strip() and len(s.strip()) > 10]
                 if para_sentences:
-                    # ✅ Cap at 15 sentences - anything more is likely a parsing error
+                    # Cap at 15 sentences - anything more is likely a parsing error
                     num_sentences = min(len(para_sentences), 15)
                     sentences_per_para.append(num_sentences)
             
-            # ✅ Apply reasonable default if we got weird results
+            # Apply reasonable default if we got weird results
             if not sentences_per_para:
                 avg_sentences_per_para = 3.0  # Reasonable default
             else:
                 avg_sentences_per_para = sum(sentences_per_para) / len(sentences_per_para)
-                # ✅ Safety cap: if average is > 10, likely a parsing error
+                # Safety cap: if average is > 10, likely a parsing error
                 if avg_sentences_per_para > 10:
                     logger.warning(f"Unusually high sentences/para ({avg_sentences_per_para:.1f}), capping at 5.0")
                     avg_sentences_per_para = 5.0
@@ -434,7 +300,7 @@ class BrandMetricsAnalyzer:
             has_bullets = bool(re.search(r'^\s*[-*•]', text, re.MULTILINE))
             has_numbered_lists = bool(re.search(r'^\s*\d+\.', text, re.MULTILINE))
             
-            # ✅ IMPROVED PHRASE EXTRACTION
+            # Improved phrase extraction
             words = text.lower().split()
             phrases = []
             
@@ -444,7 +310,7 @@ class BrandMetricsAnalyzer:
                         phrase = ' '.join(words[i:i+length])
                         phrase = re.sub(r'[^\w\s]', '', phrase).strip()
                         
-                        # ✅ FILTER OUT PDF METADATA AND ARTIFACTS
+                        # Filter out PDF metadata and artifacts
                         if not phrase or len(phrase) < 10:
                             continue
                         
@@ -465,13 +331,13 @@ class BrandMetricsAnalyzer:
             # Count phrase frequency - only keep phrases that appear multiple times
             phrase_counts = Counter(phrases)
             
-            # ✅ Filter: must appear at least 2 times AND not be metadata
+            # Filter: must appear at least 2 times AND not be metadata
             common_phrases = [
                 phrase for phrase, count in phrase_counts.most_common(50) 
                 if count >= 2 and not self._is_pdf_metadata(phrase)
             ]
             
-            # ✅ Additional validation: phrases should contain actual words
+            # Additional validation: phrases should contain actual words
             validated_phrases = []
             for phrase in common_phrases:
                 # Must contain at least one word longer than 4 characters
@@ -535,23 +401,23 @@ class BrandMetricsAnalyzer:
                 'sample_count': len(docs)
             }
             
-            logger.info(f"📊 Metrics loaded: {self.business_id}/{self.content_type}")
+            logger.info(f"Metrics loaded: {self.business_id}/{self.content_type}")
             logger.info(f"   Target sentence length: {self.metrics['target_sentence_length']:.1f} words")
             logger.info(f"   Target sentences/para: {self.metrics['target_sentences_per_para']:.1f}")
             logger.info(f"   Signature phrases: {len(self.metrics['signature_phrases'])}")
             
-            # ✅ Log sample phrases for debugging
+            # Log sample phrases for debugging
             if self.metrics['signature_phrases']:
                 logger.info(f"   Sample phrases: {self.metrics['signature_phrases'][:5]}")
     
     def _consolidate_phrases(self, phrase_lists: List[List[str]]) -> List[str]:
         """
-        ✅ IMPROVED: Find phrases common across multiple documents with better filtering
+        Improved: Find phrases common across multiple documents with better filtering
         """
         all_phrases = [phrase for sublist in phrase_lists for phrase in sublist]
         phrase_counts = Counter(all_phrases)
         
-        # ✅ Only keep phrases that appear in multiple documents
+        # Only keep phrases that appear in multiple documents
         # AND are not metadata artifacts
         consolidated = [
             phrase for phrase, count in phrase_counts.most_common(30) 
@@ -671,6 +537,7 @@ class BrandLearningMemory:
         self.table_name = "reviewer_learning"
         self._connection_pool = None
     
+    @db_circuit_breaker
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -691,7 +558,6 @@ class BrandLearningMemory:
                 'connect_timeout': 10,
                 'sslmode': 'require'  # Required for Neon
             }
-            
             
             # Neon pooler doesn't support startup parameters
             if 'pooler' not in parsed.hostname:
@@ -729,25 +595,12 @@ class BrandLearningMemory:
                      format_type: str = ""):
         """
         Save learning pattern using raw SQL with proper transaction management.
-        
-        Args:
-            generation_id: Unique identifier for generation
-            content_type: blog/social/ad
-            creative_angle: The creative approach used
-            generated_content: The generated content
-            auto_score: Automatic quality score
-            human_approved: Human approval (optional)
-            human_score: Human score (optional)
-            human_feedback: Human feedback text
-            topic: Content topic
-            user_id: User ID
-            format_type: Format type
         """
         conn = None
         cursor = None
         
         try:
-            conn = db_circuit_breaker.call(self._get_connection)
+            conn = self._get_connection()
             cursor = conn.cursor()
             
             # Check if exists
@@ -824,7 +677,7 @@ class BrandLearningMemory:
         cursor = None
         
         try:
-            conn = db_circuit_breaker.call(self._get_connection)
+            conn = self._get_connection()
             cursor = conn.cursor()
 
             cursor.execute(f"""
@@ -843,7 +696,7 @@ class BrandLearningMemory:
                 return False
             
             conn.commit()
-            logger.info(f"✅ Feedback saved for {generation_id}")
+            logger.info(f"Feedback saved for {generation_id}")
             return True
             
         except Exception as e:
@@ -987,17 +840,17 @@ class BrandLearningMemory:
         summary = f"\n=== LEARNED PATTERNS FOR {content_type.upper()} ===\n\n"
         
         if approved:
-            summary += "✅ SUCCESSFUL APPROACHES (Human-Approved or High Auto-Score):\n"
+            summary += "SUCCESSFUL APPROACHES (Human-Approved or High Auto-Score):\n"
             for i, pattern in enumerate(approved, 1):
                 score = pattern.get('human_score') or pattern.get('auto_score', 0)
-                approval_type = "👤 Human" if pattern.get('human_approved') else "🤖 Auto"
+                approval_type = "👤 Human" if pattern.get('human_approved') else "Auto"
                 
                 summary += f"{i}. {approval_type} Score: {score:.1f}/10\n"
                 summary += f"   Creative angle: {pattern.get('creative_angle', 'N/A')}\n"
                 summary += f"   What worked: {pattern.get('human_feedback') or 'Good alignment'}\n\n"
         
         if rejected:
-            summary += "\n❌ AVOID THESE APPROACHES (Rejected):\n"
+            summary += "\nAVOID THESE APPROACHES (Rejected):\n"
             for i, pattern in enumerate(rejected, 1):
                 summary += f"{i}. Score: {pattern.get('auto_score', 0):.1f}/10\n"
                 summary += f"   What failed: {pattern.get('creative_angle', 'N/A')}\n"
@@ -1100,7 +953,7 @@ class Marketing_Rag_System:
                 logger.info("Setting up embedding model...")
                 self.embed_model = FastEmbedEmbedding(model_name="BAAI/bge-small-en-v1.5")
                 self._embed_model_cache = self.embed_model
-                logger.info("✅ Embedding model ready!")
+                logger.info("Embedding model ready!")
                 return self.embed_model
             except Exception as e:
                 logger.error(f"Failed to initialize embedding model: {e}", exc_info=True)
@@ -1154,22 +1007,22 @@ class Marketing_Rag_System:
                 parsed = urlparse(raw_uri)
                 
                 logger.info("="*80)
-                logger.info(f"📁 Building index for: {self.business_id} / {self.content_type}")
-                logger.info(f"📂 Data path: {self.data_path}")
-                logger.info(f"📊 Table name: {self.table_name}")
+                logger.info(f"Building index for: {self.business_id} / {self.content_type}")
+                logger.info(f"Data path: {self.data_path}")
+                logger.info(f"Table name: {self.table_name}")
                 
                 # Validate data path
                 if not os.path.exists(self.data_path):
-                    logger.error(f"❌ Data path does not exist: {self.data_path}")
+                    logger.error(f"Data path does not exist: {self.data_path}")
                     raise ValueError(f"Data path not found: {self.data_path}")
                 
                 files = os.listdir(self.data_path)
-                logger.info(f"📄 Files found: {len(files)}")
+                logger.info(f"Files found: {len(files)}")
                 for f in files[:5]:
                     logger.info(f"   - {f}")
                 
                 if not files:
-                    logger.warning(f"⚠️  No files in {self.data_path}")
+                    logger.warning(f"No files in {self.data_path}")
                     return None
                 
                 logger.info("="*80)
@@ -1201,7 +1054,7 @@ class Marketing_Rag_System:
                         vector_store=self.vector_store,
                         embed_model=Settings.embed_model
                     )
-                    logger.info(f"✅ Loaded existing index: {self.table_name}")
+                    logger.info(f"Loaded existing index: {self.table_name}")
                     
                     # Verify index
                     retriever = index.as_retriever(similarity_top_k=3)
@@ -1220,7 +1073,7 @@ class Marketing_Rag_System:
                     logger.info(f"Loaded {len(documents)} documents")
                     
                     if not documents:
-                        logger.error(f"❌ No documents loaded from {self.data_path}")
+                        logger.error(f"No documents loaded from {self.data_path}")
                         return None
                     
                     # Build index
@@ -1230,13 +1083,13 @@ class Marketing_Rag_System:
                         storage_context=storage_context,
                         show_progress=True
                     )
-                    logger.info(f"✅ Index built successfully: {self.table_name}")
+                    logger.info(f"Index built successfully: {self.table_name}")
                 
                 logger.info("="*80)
                 return index
                 
         except Exception as e:
-            logger.error(f"❌ Index build failed: {e}", exc_info=True)
+            logger.error(f"Index build failed: {e}", exc_info=True)
             raise
 
 
@@ -1386,16 +1239,16 @@ class KBQueryTool(BaseTool):
             response = style_guide.query(query)
             response_str = str(response)
             
-            logger.info(f"✅ KB Response: {len(response_str)} chars")
+            logger.info(f"KB Response: {len(response_str)} chars")
             
             if not response_str or response_str.strip() == "":
-                logger.warning("⚠️  Empty KB response")
+                logger.warning("Empty KB response")
                 return self._get_fallback_response(content_type)
             
             return response_str
             
         except Exception as e:
-            logger.error(f"❌ KB query failed: {e}", exc_info=True)
+            logger.error(f"KB query failed: {e}", exc_info=True)
             return self._get_fallback_response(content_type)
     
     def _get_fallback_response(self, content_type: str) -> str:
@@ -1414,23 +1267,22 @@ class TavilySearchTool(BaseTool):
     name: str = "tavily_search"
     description: str = "Search the web using Tavily API for current information and trends"
     
+    @sleep_and_retry
+    @tavily_rate_limit
+    @tavily_circuit_breaker
     @retry(
         stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=1, min=2, max=5),
         reraise=False
     )
-    @tavily_rate_limiter
     def _run(self, query: str) -> str:
         """Execute search with rate limiting and retry logic"""
         if not TAVILY_API_KEY:
             return "Web search unavailable - TAVILY_API_KEY not configured"
         
         try:
-            def _search():
-                client = TavilyClient(api_key=TAVILY_API_KEY)
-                return client.search(query, max_results=5)
-            
-            result = tavily_circuit_breaker.call(_search)
+            client = TavilyClient(api_key=TAVILY_API_KEY)
+            result = client.search(query, max_results=5)
             return str(result)
             
         except Exception as e:
@@ -1478,7 +1330,7 @@ class LearningMemoryTool(BaseTool):
                         except:
                             data = {}
                     
-                    approval_type = "👤 Human" if p.get('human_approved') else "🤖 Auto"
+                    approval_type = "👤 Human" if p.get('human_approved') else "Auto"
                     score = p.get('human_score') or p.get('auto_score', 0)
                     result += f"- {approval_type} | {data.get('creative_angle', 'N/A')} (Score: {score:.1f}/10)\n"
                 return result
@@ -1532,7 +1384,7 @@ class BrandMetricsTool(BaseTool):
             if action == "get_metrics":
                 metrics = self.analyzer.metrics
                 
-                result = "📊 BRAND METRICS (GROUND TRUTH):\n\n"
+                result = "BRAND METRICS (GROUND TRUTH):\n\n"
                 result += f"Target Sentence Length: {metrics['target_sentence_length']:.1f} words\n"
                 result += f"Target Sentences/Paragraph: {metrics['target_sentences_per_para']:.1f}\n"
                 result += f"Uses Bullet Points: {metrics['uses_bullets']}\n"
@@ -1572,7 +1424,7 @@ class ContentScoringTool(BaseTool):
         try:
             scores = self.analyzer.score_content(content)
             
-            result = "🤖 AUTOMATIC STRUCTURAL SCORES (Objective Measurements):\n\n"
+            result = "AUTOMATIC STRUCTURAL SCORES (Objective Measurements):\n\n"
             result += f"Overall Structure Score: {scores['structure_score']}/10\n"
             result += f"Signature Phrase Score: {scores['phrase_score']}/10\n\n"
             
@@ -1647,7 +1499,7 @@ def run_generation_with_learning(business_id: str, topic: str,
         logger.error(f"Failed to get user_id: {e}", exc_info=True)
         # Continue without user_id - will be handled in save_learning
     
-    logger.info(f"🆔 Generation ID: {generation_id}, User ID: {user_id}")
+    logger.info(f"Generation ID: {generation_id}, User ID: {user_id}")
     
     # Determine content type
     if "blog" in format_type.lower():
@@ -1712,7 +1564,7 @@ def run_generation_with_learning(business_id: str, topic: str,
             format_type=format_type,
             user_id=user_id
         )
-        logger.info(f"✅ Auto-saved learning for generation {generation_id}")
+        logger.info(f"Auto-saved learning for generation {generation_id}")
     except Exception as e:
         logger.error(f"Failed to auto-save learning: {e}", exc_info=True)
         # Don't crash - return result anyway
@@ -1821,11 +1673,11 @@ def update_generation_with_human_feedback(generation_id: str,
         content_type = "blog"
         stats = learning_memory.get_learning_stats(content_type)
         
-        logger.info(f"✅ Human feedback saved for {generation_id}")
-        logger.info(f"📊 Agent Accuracy: {stats.get('agent_accuracy', 0):.1f}%")
-        logger.info(f"📊 Approval Rate: {stats.get('approval_rate', 0):.1f}%")
+        logger.info(f"Human feedback saved for {generation_id}")
+        logger.info(f"Agent Accuracy: {stats.get('agent_accuracy', 0):.1f}%")
+        logger.info(f"Approval Rate: {stats.get('approval_rate', 0):.1f}%")
     else:
-        logger.warning(f"⚠️  Generation {generation_id} not found")
+        logger.warning(f"Generation {generation_id} not found")
     
     return success
 
@@ -1896,9 +1748,9 @@ class ContentCrewFactory:
             backstory="""You're a creative strategist who makes content memorable.
 
                     CRITICAL BALANCE:
-                    ✅ Stay true to brand voice (tone, values, vocabulary)
-                    ✅ Find fresh perspectives competitors haven't used
-                    ✅ Make it scroll-stopping while staying authentic
+                    Stay true to brand voice (tone, values, vocabulary)
+                    Find fresh perspectives competitors haven't used
+                    Make it scroll-stopping while staying authentic
 
                     You review past learnings and propose 2-3 creative angles that are:
                     - Fresh and haven't been overused
@@ -1919,8 +1771,8 @@ class ContentCrewFactory:
                     - {{"action": "get_approved", "content_type": "blog"}}
 
                     Review:
-                    ✅ What creative angles WORKED (high scores, approved)?
-                    ❌ What creative angles FAILED (rejected, low scores)?
+                    What creative angles WORKED (high scores, approved)?
+                    What creative angles FAILED (rejected, low scores)?
 
                     STEP 2 - Understand brand:
                     Query KB 2 times:
@@ -1929,7 +1781,7 @@ class ContentCrewFactory:
 
                     STEP 3 - Propose 2-3 creative angles:
 
-                    ⚠️ CRITICAL RULES:
+                    CRITICAL RULES:
                     - DO NOT propose angles similar to rejected patterns
                     - DO build on successful patterns
                     - If an angle was rejected before with feedback "too generic", 
@@ -1977,19 +1829,19 @@ class ContentCrewFactory:
 
                 OUTPUT:
 
-                📊 STRUCTURAL METRICS:
+                STRUCTURAL METRICS:
                 - Target sentence length: [X] words (±2 allowed)
                 - Target sentences/paragraph: [X] (±1 allowed)
                 - Format: [blog/email/social structure]
                 - Signature phrases: [list top 10]
 
-                🎨 TONE & STYLE:
+                TONE & STYLE:
                 - Primary tone: [descriptors]
                 - Opening pattern: [how to start]
                 - Closing pattern: [how to end]
                 - Perspective: [you/we/they]
 
-                ⚠️ CRITICAL FORMAT RULES:
+                CRITICAL FORMAT RULES:
                 - Content type: {format}
                 - Structural requirements: [specific to type]
                 - What to avoid: [format mistakes]""",
@@ -2044,10 +1896,10 @@ class ContentCrewFactory:
             CRITICAL: You MUST use the score_content tool. Don't guess at measurements.
 
             Scoring:
-            - 9.0-10: Excellent ✅
-            - 8.0-8.9: Good ✅
-            - 7.0-7.9: Needs revision 🔄
-            - <7.0: Major issues ❌""",
+            - 9.0-10: Excellent
+            - 8.0-8.9: Good
+            - 7.0-7.9: Needs revision
+            - <7.0: Major issues""",
             tools=[scoring_tool, learning_tool, kb_tool],
             memory=True,
             verbose=True,
@@ -2204,7 +2056,7 @@ def verify_learning_loop(business_id: str, content_type: str = "blog"):
     stats = memory.get_learning_stats(content_type)
     
     print("\n" + "="*60)
-    print("📊 LEARNING SYSTEM STATUS")
+    print("LEARNING SYSTEM STATUS")
     print("="*60)
     print(f"Business ID: {business_id}")
     print(f"Content Type: {content_type}")
@@ -2218,11 +2070,11 @@ def verify_learning_loop(business_id: str, content_type: str = "blog"):
     print("="*60)
     
     if stats.get('total_generations', 0) == 0:
-        print("❌ WARNING: No learnings saved!")
+        print("WARNING: No learnings saved!")
     elif stats.get('agent_accuracy', 0) < 50 and stats.get('human_feedback_count', 0) > 5:
-        print("⚠️  WARNING: Agent accuracy low!")
+        print("WARNING: Agent accuracy low!")
     else:
-        print("✅ Learning system operational")
+        print("Learning system operational")
     
     return stats
 
@@ -2255,7 +2107,7 @@ if __name__ == "__main__":
     # Command: Add feedback
     if args.add_feedback:
         if not args.generation_id or not args.approved or args.score is None or not args.feedback:
-            print("❌ Error: --add-feedback requires --generation-id, --approved, --score, and --feedback")
+            print("Error: --add-feedback requires --generation-id, --approved, --score, and --feedback")
             exit(1)
         
         human_approved = (args.approved.lower() == 'yes')
@@ -2269,17 +2121,17 @@ if __name__ == "__main__":
         exit(0)
     
     # Default: Generate content
-    print(f"\n🚀 Starting Content Generation")
-    print(f"📋 Topic: {args.topic}")
-    print(f"📝 Format: {args.format}")
-    print(f"🏢 Business: {args.business_id}")
+    print(f"\nStarting Content Generation")
+    print(f"Topic: {args.topic}")
+    print(f"Format: {args.format}")
+    print(f"Business: {args.business_id}")
     print("="*60 + "\n")
     
     content_type = "blog" if "blog" in args.format.lower() else "social" if "social" in args.format.lower() else "ad"
     
     # Show learning summary
     learning_memory = BrandLearningMemory(business_id=args.business_id)
-    print("\n📚 LEARNING MEMORY SUMMARY")
+    print("\nLEARNING MEMORY SUMMARY")
     print("="*60)
     print(learning_memory.get_learning_summary(content_type))
     print("="*60 + "\n")
@@ -2293,9 +2145,9 @@ if __name__ == "__main__":
     )
     
     print("\n" + "="*60)
-    print("✅ GENERATION COMPLETE")
+    print("GENERATION COMPLETE")
     print("="*60)
     print(result)
     print("\n" + "="*60)
-    print(f"📋 Generation ID: {generation_id}")
+    print(f"Generation ID: {generation_id}")
     print("="*60)

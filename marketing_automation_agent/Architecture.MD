@@ -153,10 +153,10 @@ generation_storage_cache = {}  # {business_id: storage_instance}
 - **Scoring:** 50% automatic structural + 50% LLM qualitative
 
 **Decision Rules:**
-- ≥9.0: Approved ✅
-- 8.0-8.9: Approved with suggestions ✅
-- 7.0-7.9: Revision needed 🔄
-- <7.0: Major revision ❌
+- >=9.0: Approved
+- 8.0-8.9: Approved with suggestions
+- 7.0-7.9: Revision needed
+- <7.0: Major revision
 
 ---
 
@@ -643,13 +643,13 @@ fallbacks = {
 
 ### Current Security Posture
 
-**✅ Implemented:**
+**Implemented:**
 - SQL injection protection (SQLAlchemy parameterized queries)
 - File upload sanitization (`secure_filename()`)
 - Business-specific data isolation (separate folders/tables)
 - CORS enabled for frontend
 
-**⚠️ Missing (for production):**
+**Missing (for production):**
 - Authentication/authorization
 - API rate limiting
 - Input validation on all endpoints

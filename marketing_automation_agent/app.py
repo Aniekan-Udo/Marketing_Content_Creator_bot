@@ -1,33 +1,30 @@
-# api.py - PRODUCTION-READY FastAPI APPLICATION
+import os
+import time
+from datetime import datetime
+from contextlib import asynccontextmanager
+from typing import Optional, List, Dict, Any
+from collections import defaultdict
+from threading import Lock
 
-"""
-Production-ready FastAPI application with:
-- Rate limiting per endpoint
-- Comprehensive error handling
-- Request/response logging
-- Health checks and monitoring
-- Graceful shutdown
-- CORS configuration
-"""
-
+import structlog
+import psycopg2
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
-from datetime import datetime
-from contextlib import asynccontextmanager
-import os
-import time
-import structlog
-import psycopg2
-from dotenv import load_dotenv
+from slowapi.extension import Limiter
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi import Request
 
+
+# Load environment variables
 load_dotenv()
 
-# Database imports
-# Database imports
+# Internal Imports
 try:
     from .db import (
         session_maker, 
@@ -38,7 +35,6 @@ try:
         check_database_health,
         get_pool_status
     )
-    # Business logic imports
     from .deployer import (
         run_generation_with_learning,
         update_generation_with_human_feedback,
@@ -59,7 +55,6 @@ except ImportError:
         check_database_health,
         get_pool_status
     )
-    # Business logic imports
     from deployer import (
         run_generation_with_learning,
         update_generation_with_human_feedback,
@@ -71,63 +66,6 @@ except ImportError:
         logger
     )
 
-# ===== RATE LIMITING =====
-
-from collections import defaultdict
-from threading import Lock
-
-class EndpointRateLimiter:
-    """
-    Simple in-memory rate limiter for API endpoints.
-    For production, consider Redis-based rate limiting.
-    """
-    
-    def __init__(self):
-        self.requests = defaultdict(list)
-        self.lock = Lock()
-    
-    def is_allowed(self, identifier: str, max_requests: int, window: int = 60) -> bool:
-        """
-        Check if request is allowed.
-        
-        Args:
-            identifier: IP address or API key
-            max_requests: Max requests in window
-            window: Time window in seconds
-            
-        Returns:
-            bool: True if allowed
-        """
-        with self.lock:
-            now = time.time()
-            
-            # Clean old requests
-            self.requests[identifier] = [
-                timestamp for timestamp in self.requests[identifier]
-                if now - timestamp < window
-            ]
-            
-            # Check limit
-            if len(self.requests[identifier]) >= max_requests:
-                return False
-            
-            # Add new request
-            self.requests[identifier].append(now)
-            return True
-
-rate_limiter = EndpointRateLimiter()
-
-
-async def rate_limit_dependency(request: Request):
-    """FastAPI dependency for rate limiting"""
-    identifier = request.client.host
-    
-    if not rate_limiter.is_allowed(identifier, max_requests=10, window=60):
-        raise HTTPException(
-            status_code=429,
-            detail="Rate limit exceeded. Please try again later."
-        )
-
 
 # ===== REQUEST LOGGING MIDDLEWARE =====
 
@@ -138,15 +76,15 @@ async def lifespan(app: FastAPI):
     logger.info("Starting BrandGuard AI API")
     try:
         init_db()
-        logger.info("✅ Database initialized")
+        logger.info("Database initialized")
         
         # Check database health
         if check_database_health():
-            logger.info("✅ Database health check passed")
+            logger.info("Database health check passed")
         else:
-            logger.warning("⚠️ Database health check failed")
+            logger.warning("Database health check failed")
     except Exception as e:
-        logger.error(f"❌ Startup failed: {e}", exc_info=True)
+        logger.error(f"Startup failed: {e}", exc_info=True)
         raise
 
     yield  # Application runs
@@ -164,6 +102,11 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
+
+# Initialize slowapi Limiter
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS Configuration
 app.add_middleware(
@@ -334,14 +277,15 @@ async def health_check():
                 "pool": {"status": "error"}
             }
         
-        # Check circuit breakers
+        # Check circuit breakers (library based)
         try:
             circuit_status = {
-                "groq": getattr(groq_circuit_breaker, 'state', 'unknown'),
-                "tavily": getattr(tavily_circuit_breaker, 'state', 'unknown'),
-                "database": getattr(db_circuit_breaker, 'state', 'unknown')
+                "groq": "open" if groq_circuit_breaker.opened else "closed",
+                "tavily": "open" if tavily_circuit_breaker.opened else "closed",
+                "database": "open" if db_circuit_breaker.opened else "closed"
             }
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Error checking circuit breakers: {e}")
             circuit_status = {"status": "error"}
         
         # Overall status
@@ -372,8 +316,10 @@ async def health_check():
         )
 
 
-@app.post("/api/upload", dependencies=[Depends(rate_limit_dependency)])
+@app.post("/api/upload")
+@limiter.limit("10/minute")
 async def upload_documents(
+    request: Request,
     files: List[UploadFile] = File(...),
     business_id: str = Form(...),
     content_type: str = Form(...)
@@ -465,7 +411,7 @@ async def upload_documents(
 
             session.commit()
 
-        logger.info(f"✅ Uploaded {len(uploaded_files)} files ({total_size/1024:.1f}KB) for {business_id}")
+        logger.info(f"Uploaded {len(uploaded_files)} files ({total_size/1024:.1f}KB) for {business_id}")
 
         return {
             "success": True,
@@ -483,8 +429,9 @@ async def upload_documents(
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
-@app.post("/api/generate", response_model=GenerateResponse, dependencies=[Depends(rate_limit_dependency)])
-async def generate_content(request: GenerateRequest):
+@app.post("/api/generate", response_model=GenerateResponse)
+@limiter.limit("5/minute")
+async def generate_content(request: Request, body: GenerateRequest):
     """
     Generate marketing content with comprehensive error handling.
     
@@ -493,18 +440,18 @@ async def generate_content(request: GenerateRequest):
     start_time = time.time()
     
     try:
-        logger.info(f"🚀 Generation request: {request.business_id} - {request.topic}")
+        logger.info(f"Generation request: {body.business_id} - {body.topic}")
         
         result_dict, generation_id = run_generation_with_learning(
-            business_id=request.business_id,
-            topic=request.topic,
-            format_type=request.format_type,
-            voice=request.voice
+            business_id=body.business_id,
+            topic=body.topic,
+            format_type=body.format_type,
+            voice=body.voice
         )
         
         processing_time = round((time.time() - start_time) * 1000, 2)
         
-        logger.info(f"✅ Generation complete: {generation_id} ({processing_time}ms)")
+        logger.info(f"Generation complete: {generation_id} ({processing_time}ms)")
         
         return GenerateResponse(
             status="success",
@@ -512,9 +459,9 @@ async def generate_content(request: GenerateRequest):
             content=result_dict["content"],
             auto_score=result_dict["auto_score"],
             creative_angle=result_dict["creative_angle"],
-            topic=request.topic,
-            format_type=request.format_type,
-            business_id=request.business_id,
+            topic=body.topic,
+            format_type=body.format_type,
+            business_id=body.business_id,
             timestamp=datetime.utcnow().isoformat(),
             processing_time_ms=processing_time
         )
@@ -536,12 +483,13 @@ async def generate_content(request: GenerateRequest):
 
 
 @app.post("/api/feedback", response_model=FeedbackResponse)
+@limiter.limit("5/minute")
 async def submit_feedback(request: FeedbackRequest):
     """
     Submit human feedback with validation and error handling.
     """
     try:
-        logger.info(f"📝 Feedback for {request.generation_id}")
+        logger.info(f"Feedback for {request.generation_id}")
 
         success = update_generation_with_human_feedback(
             generation_id=request.generation_id,
@@ -584,7 +532,8 @@ async def submit_feedback(request: FeedbackRequest):
 
 
 @app.get("/api/learning/{business_id}/stats")
-async def get_learning_stats(business_id: str, content_type: str = "blog"):
+@limiter.limit("20/minute")
+async def get_learning_stats(request:Request, business_id: str, content_type: str = "blog"):
     """Get learning statistics for a business"""
     try:
         memory = BrandLearningMemory(business_id=business_id)
@@ -605,7 +554,8 @@ async def get_learning_stats(business_id: str, content_type: str = "blog"):
 
 
 @app.get("/api/learning/verify/{business_id}")
-async def verify_learning(business_id: str, content_type: str = "blog"):
+@limiter.limit("5/minute")
+async def verify_learning(request:Request, business_id: str, content_type: str = "blog"):
     """Verify learning system is working"""
     try:
         stats = verify_learning_loop(business_id, content_type)
@@ -675,27 +625,7 @@ async def internal_error_handler(request: Request, exc: Exception):
 
 if __name__ == "__main__":
     import uvicorn
-
-    print("\n" + "="*60)
-    print("🎯 BrandGuard AI - Production-Ready API")
-    print("="*60)
-    print("✅ Features:")
-    print("  - Rate limiting (10 req/min per IP)")
-    print("  - Circuit breakers (Groq, Tavily, DB)")
-    print("  - Database: NullPool (Neon-optimized)")
-    print("  - Automatic retry with exponential backoff")
-    print("  - Comprehensive error handling")
-    print("  - Request/response logging")
-    print("  - Health checks")
-    print("="*60)
-    print("🌐 Endpoints:")
-    print("  GET  /health              - Health check")
-    print("  POST /api/generate        - Generate content")
-    print("  POST /api/feedback        - Submit feedback")
-    print("  POST /api/upload          - Upload docs")
-    print("  GET  /api/learning/stats  - Learning stats")
-    print("  GET  /docs                - API documentation")
-    print("="*60 + "\n")
+    logger.info("Starting BrandGuard AI API Server")
 
     uvicorn.run(
         "app:app",

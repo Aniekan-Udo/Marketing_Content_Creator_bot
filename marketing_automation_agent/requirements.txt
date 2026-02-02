@@ -1,41 +1,3 @@
-# # Core CrewAI
-# crewai[tools]
-# litellm
-
-# # LLM Providers
-# langchain-groq
-# groq
-
-# # Search & Tools
-# tavily-python
-
-# # LlamaIndex (complete set)
-# llama-index-core
-# llama-index-embeddings-huggingface
-# llama-index-vector-stores-postgres
-# llama_index-embeddings-fastembed
-
-# # ML & Embeddings
-# sentence-transformers
-# transformers
-# optimum
-# #optimum-intel>=1.23.0
-# torch
-
-# # Database
-# psycopg2-binary
-# pgvector
-
-# # Web Framework
-# flask
-# flask-cors
-
-# # Utilities
-# python-dotenv
-# cashews
-# structlog
-# tenacity
-
 
 # Core Framework
 streamlit==1.31.0
@@ -67,6 +29,8 @@ pgvector==0.2.4
 tavily-python==0.3.3
 
 # Utilities
+limits
+ratelimit
 structlog==24.1.0
 tenacity==8.2.3
 cashews==6.3.0

@@ -4,7 +4,7 @@ Here is a structured template you can use for your documentation, summarizing ev
 
 ---
 
-# 🛠 RAG System Troubleshooting Log
+# RAG System Troubleshooting Log
 
 ## 1. Bug: SQLAlchemy ArgumentError / Malformed URL
 
@@ -27,7 +27,7 @@ Here is a structured template you can use for your documentation, summarizing ev
 
 ## 3. Bug: The "Empty Index" Success Loop
 
-* **Symptom:** Logs show `✅ Loaded existing index`, but queries return no results or fallbacks.
+* **Symptom:** Logs show `Loaded existing index`, but queries return no results or fallbacks.
 * **Cause:** The Postgres table existed in the database, but it contained 0 vectors (nodes). The system assumed the "Success" of finding the table meant the data was there.
 * **Solution:** * Implemented a **Verification Query** immediately after loading an index.
 * If `retriever.retrieve("test")` returns 0 nodes, the system now raises an exception to force a rebuild of the index from the source documents.
