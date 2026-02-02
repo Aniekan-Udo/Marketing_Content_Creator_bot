@@ -12,6 +12,7 @@ pgvector>=0.2.4
 # ===== AI Framework =====
 crewai>=0.28.0
 crewai-tools>=0.1.6
+litellm[proxy]
 litellm>=1.0.0  # CRITICAL: CrewAI needs this for Groq!
 
 # ===== LLM Providers =====
