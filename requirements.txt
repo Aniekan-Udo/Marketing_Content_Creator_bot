@@ -8,27 +8,30 @@ psycopg2-binary==2.9.9
 sqlalchemy==2.0.25
 pgvector==0.2.4
 
+# Multi-Agent AI (your core system)
+crewai==0.28.0
+crewai-tools==0.1.6
+langchain-core==0.2.12
+langchain-community==0.2.12
+
 # LLM & Tools
 groq==0.5.0
 tavily-python==0.3.3
 
-# Rate limiting & logging
+# Rate limiting & Circuit Breakers
 slowapi==0.1.9
-structlog==24.1.0
 ratelimit==2.2.1
-limits==3.12.0 
+limits==3.12.0
 circuitbreaker==1.4.0
 
 # File upload & utilities
 python-multipart==0.0.17
 python-dotenv==1.0.1
 pydantic==2.9.2
-pydantic-settings==2.5.2
+structlog==24.1.0
+tenacity==9.0.0
 
-# PDF processing (if needed)
+# PDF processing
 pdfplumber==0.11.4
 PyPDF2==3.0.1
 python-docx==1.1.2
-
-# Production utilities
-tenacity==9.0.0
