@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marketing Agent Architecture - Interactive Diagrams</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        nav {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            position: sticky;
+            top: 20px;
+            z-index: 100;
+        }
+
+        nav h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        nav a {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        nav a:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .diagram-section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .diagram-section h2 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .diagram-section p {
+            color: #555;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+
+        .mermaid {
+            background: #fafafa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            overflow-x: auto;
+        }
+
+        .insights {
+            background: #e8f4fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+
+        .insights h4 {
+            color: #1976D2;
+            margin-bottom: 10px;
+        }
+
+        .insights ul {
+            margin-left: 20px;
+        }
+
+        .insights li {
+            margin: 5px 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #777;
+            margin-top: 40px;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .controls button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .controls button:hover {
+            background: #764ba2;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8em;
+            }
+
+            nav ul {
+                flex-direction: column;
+            }
+
+            .container {
+                padding: 10px;
+            }
+
+            .controls {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🏗️ Marketing Content Generation Agent</h1>
+            <p class="subtitle">Interactive Architecture Diagrams</p>
+        </header>
+
+        <nav>
+            <h3>📑 Quick Navigation</h3>
+            <ul>
+                <li><a href="#diagram1">Component Architecture</a></li>
+                <li><a href="#diagram2">Generation Flow</a></li>
+                <li><a href="#diagram3">Feedback Loop</a></li>
+                <li><a href="#diagram4">RAG System</a></li>
+                <li><a href="#diagram5">Database Schema</a></li>
+                <li><a href="#diagram6">Learning System</a></li>
+                <li><a href="#diagram7">Thread Safety</a></li>
+            </ul>
+        </nav>
+
+        <!-- Diagram 1: Component Architecture -->
+        <div class="diagram-section" id="diagram1">
+            <h2>1. Component Architecture</h2>
+            <p>High-level view of how all components fit together: Frontend → API → Agent Pipeline → Storage</p>
+
+            <div class="mermaid">
+                graph TB
+                subgraph "Frontend"
+                UI[Web Interface<br />index.html]
+                FUI[Feedback UI<br />feedback.html]
+                end
+
+                subgraph "Flask API Layer - app.py"
+                API[Flask Routes]
+                Upload[/api/upload]
+                Generate[/api/generate]
+                Status[/api/status]
+                Feedback[/api/feedback/*]
+
+                API --> Upload
+                API --> Generate
+                API --> Status
+                API --> Feedback
+                end
+
+                subgraph "Caching Layer"
+                StatusCache[Status Store<br />Per-User Progress]
+                KBCache[KB Instance Cache<br />Per-Business RAG]
+                LearningCache[Learning Memory Cache<br />Per-Business Patterns]
+                end
+
+                subgraph "Core Logic - deployer.py"
+                CrewFactory[ContentCrewFactory]
+                RAG[Marketing_Rag_System]
+                Metrics[BrandMetricsAnalyzer]
+                Learning[BrandLearningMemory]
+
+                subgraph "5-Agent Pipeline"
+                A1[Research Agent<br />Web Search]
+                A2[Creative Strategist<br />Learning + KB]
+                A3[Brand Analyst<br />Metrics + KB]
+                A4[Writer Agent<br />Content Creation]
+                A5[Reviewer Agent<br />Hybrid Scoring]
+
+                A1 --> A2
+                A2 --> A3
+                A3 --> A4
+                A4 --> A5
+                end
+                end
+
+                subgraph "Storage - db.py"
+                PG[(PostgreSQL<br />Relational Data)]
+                PGV[(PGVector<br />Embeddings Store)]
+
+                subgraph "Tables"
+                Users[users]
+                Docs[brand_documents]
+                Gens[generations]
+                Review[reviewer_learning]
+                Brand[brand_learning_*]
+                end
+
+                PG --> Users
+                PG --> Docs
+                PG --> Gens
+                PG --> Review
+                PG --> Brand
+                end
+
+                subgraph "External Services"
+                Groq[Groq API<br />Llama-3.3-70B]
+                Tavily[Tavily API<br />Web Search]
+                end
+
+                UI --> API
+                FUI --> Feedback
+
+                Generate --> CrewFactory
+                CrewFactory --> A1
+
+                Upload --> RAG
+                RAG --> PGV
+
+                A2 --> Learning
+                A3 --> Metrics
+                A5 --> Learning
+
+                Learning --> Brand
+                Metrics --> RAG
+
+                A1 --> Tavily
+                A2 --> Groq
+                A3 --> Groq
+                A4 --> Groq
+                A5 --> Groq
+
+                RAG --> PGV
+                CrewFactory --> Review
+
+                Generate --> StatusCache
+                Status --> StatusCache
+
+                RAG --> KBCache
+                Learning --> LearningCache
+
+                style A1 fill:#e1f5e1
+                style A2 fill:#ffe1e1
+                style A3 fill:#e1e1ff
+                style A4 fill:#ffe1e1
+                style A5 fill:#e1e1ff
+                style Groq fill:#ffcccc
+                style Tavily fill:#ccffcc
+            </div>
+
+            <div class="insights">
+                <h4>💡 Key Insights:</h4>
+                <ul>
+                    <li><strong>3-tier architecture:</strong> Frontend → API → Core Logic + Storage</li>
+                    <li><strong>Caching layer</strong> prevents redundant work across users</li>
+                    <li><strong>5 specialized agents</strong> each with distinct roles (green = research, red =
+                        creative, blue = analytical)</li>
+                    <li><strong>Dual storage:</strong> Relational DB (PostgreSQL) + Vector DB (PGVector)</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Diagram 2: Generation Flow -->
+        <div class="diagram-section" id="diagram2">
+            <h2>2. Content Generation Flow (Sequence)</h2>
+            <p>Step-by-step sequence showing how agents interact during content generation</p>
+
+            <div class="mermaid">
+                sequenceDiagram
+                participant User
+                participant API as Flask API
+                participant Cache
+                participant A1 as Research Agent
+                participant A2 as Creative Agent
+                participant A3 as Analyst Agent
+                participant A4 as Writer Agent
+                participant A5 as Reviewer Agent
+                participant DB as PostgreSQL
+                participant LLM as Groq API
+
+                User->>API: POST /api/generate<br />{topic, format, business_id}
+                API->>Cache: Create status tracker
+                API->>User: 202 Accepted<br />{generation_status: started}
+
+                Note over API: Background Thread Starts
+
+                API->>A1: Research task
+                A1->>LLM: Search for trends, data
+                LLM-->>A1: Research findings
+                Cache->>Cache: Update: researcher=completed
+
+                A1->>A2: Pass research findings
+                A2->>DB: Query learning memory
+                DB-->>A2: Past approved/rejected angles
+                A2->>LLM: Generate creative angles
+                LLM-->>A2: 2-3 angle proposals
+                Cache->>Cache: Update: strategist=completed
+
+                A2->>A3: Pass recommended angle
+                A3->>DB: Query brand metrics
+                A3->>LLM: Extract brand patterns
+                LLM-->>A3: Metrics + style guide
+                Cache->>Cache: Update: analyst=completed
+
+                A3->>A4: Pass brand blueprint
+                A4->>LLM: Write content with constraints
+                LLM-->>A4: Generated content
+                Cache->>Cache: Update: writer=completed
+
+                A4->>A5: Pass content + metadata
+                A5->>A5: Auto-score structure (50%)
+                A5->>LLM: Evaluate tone/creativity (50%)
+                LLM-->>A5: Qualitative scores
+                A5->>A5: Calculate final score
+
+                alt Score >= 8.0
+                A5->>DB: Save (agent_approved=true)
+                else Score < 8.0 A5->>DB: Save with issues flagged
+                    end
+
+                    A5->>Cache: Update result + generation_id
+                    Cache->>Cache: Update: overall=completed
+
+                    loop User polls status
+                    User->>API: GET /api/status?business_id=X
+                    API->>Cache: Get current status
+                    Cache-->>User: {agents: {}, progress: %}
+                    end
+
+                    User->>API: GET /api/status (final)
+                    API->>Cache: Get result
+                    Cache-->>User: {content, scores, generation_id}
+            </div>
+
+            <div class="insights">
+                <h4>💡 Key Insights:</h4>
+                <ul>
+                    <li><strong>Sequential pipeline:</strong> Each agent builds on previous output</li>
+                    <li><strong>Background processing:</strong> User gets immediate response, polls for updates</li>
+                    <li><strong>Hybrid scoring:</strong> 50% automatic metrics + 50% LLM judgment</li>
+                    <li><strong>Automatic learning:</strong> Saves patterns even without human feedback</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Diagram 3: Feedback Loop -->
+        <div class="diagram-section" id="diagram3">
+            <h2>3. Human Feedback Loop</h2>
+            <p>How human feedback improves future generations through pattern learning</p>
+
+            <div class="mermaid">
+                graph TB
+                Start[Content Generated<br />Auto-Score: 8.5/10]
+
+                Start --> UI[User Views in /feedback UI]
+                UI --> Decision{User Decision}
+
+                Decision -->|Approve| Approve[Human Approves<br />Score: 9/10<br />Feedback: Good]
+                Decision -->|Reject| Reject[Human Rejects<br />Score: 5/10<br />Feedback: Too formal]
+                Decision -->|Neutral| Neutral[No Action]
+
+                Approve --> SaveApproved[Save to brand_learning]
+                Reject --> SaveRejected[Save to brand_learning]
+
+                SaveApproved --> Pattern1[Pattern:
+                approved=true<br />human_score=9.0<br />creative_angle=X<br />what_worked=Good]
+
+                SaveRejected --> Pattern2[Pattern:
+                approved=false<br />human_score=5.0<br />creative_angle=Y<br />what_failed=Too formal]
+
+                Pattern1 --> Update1[Update reviewer_learning<br />agent_correct = true]
+                Pattern2 --> Update2[Update reviewer_learning<br />agent_correct = false]
+
+                Update1 --> Future[Future Generations]
+                Update2 --> Future
+
+                Future --> Agent2[Creative Agent reads:<br />Angle X worked<br />Angle Y too formal]
+
+                Agent2 --> Better[Better Creative Angles]
+
+                Neutral --> End[No Learning]
+
+                style Approve fill:#d4edda
+                style Reject fill:#f8d7da
+                style Pattern1 fill:#d4edda
+                style Pattern2 fill:#f8d7da
+                style Better fill:#d4edda
+            </div>
+
+            <div class="insights">
+                <h4>💡 Key Insights:</h4>
+                <ul>
+                    <li><strong>Dual learning tracks:</strong> Pattern learning + agent accuracy tracking</li>
+                    <li><strong>Priority system:</strong> Human feedback > auto-scores</li>
+                    <li><strong>agent_correct flag:</strong> Enables measuring agent improvement over time</li>
+                    <li><strong>Continuous improvement:</strong> Each feedback makes next generation better</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Diagram 4: RAG System -->
+        <div class="diagram-section" id="diagram4">
+            <h2>4. RAG System Architecture</h2>
+            <p>How brand documents are processed, indexed, and retrieved for generation</p>
+
+            <div class="mermaid">
+                graph LR
+                subgraph "Input"
+                Upload[User Uploads<br />Brand Docs]
+                Files[.txt, .md, .pdf]
+                end
+
+                subgraph "Processing"
+                Reader[SimpleDirectoryReader]
+                Parser{Content Type?}
+                Blog[SemanticSplitter<br />Adaptive]
+                Social[SimpleNodeParser<br />256 tokens]
+                Ads[SimpleNodeParser<br />256 tokens]
+                Embed[FastEmbed<br />BAAI/bge-small-en<br />384 dims]
+                end
+
+                subgraph "Storage"
+                PGV[(PGVector<br />rag_data_X_Y)]
+                subgraph "HNSW Index"
+                M16[m=16]
+                EF64[ef_construction=64]
+                EF40[ef_search=40]
+                end
+                end
+
+                subgraph "Retrieval"
+                Query[Query]
+                Search[Hybrid Search<br />Vector + BM25]
+                Results[Top-K Results<br />blog=5, social=3]
+                end
+
+                subgraph "Usage"
+                Agent2[Creative Agent]
+                Agent3[Analyst Agent]
+                Agent4[Writer Agent]
+                end
+
+                Upload --> Files
+                Files --> Reader
+                Reader --> Parser
+                Parser -->|blog| Blog
+                Parser -->|social| Social
+                Parser -->|ad| Ads
+                Blog --> Embed
+                Social --> Embed
+                Ads --> Embed
+                Embed --> PGV
+                PGV --> M16
+                PGV --> EF64
+                PGV --> EF40
+                Query --> Search
+                Search --> PGV
+                PGV --> Results
+                Results --> Agent2
+                Results --> Agent3
+                Results --> Agent4
+
+                style Upload fill:#e1f5e1
+                style PGV fill:#e1e1ff
+                style Results fill:#ffe1e1
+            </div>
+
+            <div class="insights">
+                <h4>💡 Key Insights:</h4>
+                <ul>
+                    <li><strong>Content-specific chunking:</strong> Blogs use semantic splitting, social uses fixed 256
+                        tokens</li>
+                    <li><strong>HNSW indexing:</strong> Fast similarity search (m=16, ef_construction=64)</li>
+                    <li><strong>Hybrid search:</strong> Combines semantic vectors + keyword matching (BM25)</li>
+                    <li><strong>Multi-agent usage:</strong> 3 different agents query the same knowledge base</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Diagram 5: Database Schema -->
+        <div class="diagram-section" id="diagram5">
+            <h2>5. Database Schema</h2>
+            <p>Entity relationships showing how data is organized in PostgreSQL</p>
+
+            <div class="mermaid">
+                erDiagram
+                USERS ||--o{ BRAND_DOCUMENTS : uploads
+                USERS ||--o{ GENERATIONS : creates
+                GENERATIONS ||--o{ REVIEWER_LEARNING : tracks
+
+                USERS {
+                int id PK
+                string email UK
+                string business_id UK
+                string subscription_tier
+                int monthly_generations_used
+                timestamp created_at
+                }
+
+                BRAND_DOCUMENTS {
+                int id PK
+                int user_id FK
+                string business_id
+                string filename
+                string content_type
+                string file_path
+                string status
+                timestamp uploaded_at
+                }
+
+                GENERATIONS {
+                int id PK
+                int user_id FK
+                string business_id
+                string topic
+                text generated_content
+                decimal kb_score
+                bool human_approved
+                timestamp created_at
+                }
+
+                REVIEWER_LEARNING {
+                int id PK
+                string generation_id UK
+                string business_id
+                text generated_content
+                string creative_angle
+                decimal agent_auto_score
+                bool agent_auto_approved
+                bool has_human_feedback
+                bool human_approved
+                decimal human_score
+                bool agent_correct
+                timestamp created_at
+                }
+            </div>
+
+            <div class="insights">
+                <h4>💡 Key Insights:</h4>
+                <ul>
+                    <li><strong>User-centric design:</strong> All data tied to users table</li>
+                    <li><strong>Dual generation tracking:</strong> GENERATIONS (old) + REVIEWER_LEARNING (new with agent
+                        accuracy)</li>
+                    <li><strong>Learning signal:</strong> agent_correct = (agent_approved == human_approved)</li>
+                    <li><strong>Soft deletes:</strong> CASCADE maintains referential integrity</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Diagram 6: Learning System Flow -->
+        <div class="diagram-section" id="diagram6">
+            <h2>6. Learning System State Machine</h2>
+            <p>State transitions showing how the system learns and improves over time</p>
+
+            <div class="mermaid">
+                stateDiagram-v2
+                [*] --> FirstGeneration
+
+                FirstGeneration --> AutoScore: Agent scores content
+
+                state AutoScore {
+                [*] --> StructuralScore
+                StructuralScore --> QualitativeScore
+                QualitativeScore --> FinalScore
+                FinalScore --> [*]
+                }
+
+                AutoScore --> SavePattern: Always save
+
+                state SavePattern {
+                [*] --> BrandLearning
+                [*] --> ReviewerLearning
+                BrandLearning --> [*]
+                ReviewerLearning --> [*]
+                }
+
+                SavePattern --> AwaitHuman: Pending feedback
+
+                AwaitHuman --> HumanReview: User reviews
+
+                state HumanReview {
+                [*] --> Approved
+                [*] --> Rejected
+                Approved --> UpdateApproved
+                Rejected --> UpdateRejected
+                }
+
+                HumanReview --> UpdateLearning
+
+                state UpdateLearning {
+                [*] --> UpdateBrandLearning
+                UpdateBrandLearning --> UpdateReviewerLearning
+                UpdateReviewerLearning --> CalculateAgentCorrect
+                CalculateAgentCorrect --> [*]
+                }
+
+                UpdateLearning --> NextGeneration
+
+                state NextGeneration {
+                [*] --> QueryLearning
+                QueryLearning --> ApplyPatterns
+                ApplyPatterns --> ImprovedContent
+                ImprovedContent --> [*]
+                }
+
+                NextGeneration --> AutoScore: Loop continues
+
+                note right of CalculateAgentCorrect
+                agent_correct =
+                (agent_approved == human_approved)
+                end note
+
+                note left of ApplyPatterns
+                Creative Agent reads:
+                - Approved patterns
+                - Rejected patterns
+                - Structural targets
+                end note
+            </div>
+
+            <div class="insights">
+                <h4>💡 Key Insights:</h4>
+                <ul>
+                    <li><strong>Continuous loop:</strong> Generation → Score → Feedback → Improve → Generate</li>
+                    <li><strong>Dual savings:</strong> BrandLearning (patterns) + ReviewerLearning (agent accuracy)</li>
+                    <li><strong>Always learning:</strong> Saves even without human feedback (using auto-scores)</li>
+                    <li><strong>Pattern application:</strong> Next generation uses learned patterns from Creative Agent
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Diagram 7: Thread Safety -->
+        <div class="diagram-section" id="diagram7">
+            <h2>7. Thread Safety Model</h2>
+            <p>How concurrent users are handled safely without race conditions</p>
+
+            <div class="mermaid">
+                sequenceDiagram
+                participant U1 as User 1<br />(BAND_Foods)
+                participant U2 as User 2<br />(BAND_Foods)
+                participant API
+                participant Lock as Init Lock
+                participant RAG
+                participant Cache
+
+                Note over U1,U2: Both trigger generation simultaneously
+
+                U1->>API: POST /generate
+                U2->>API: POST /generate
+
+                API->>Lock: get_init_lock("BAND_Foods")
+
+                par User 1 starts
+                API->>RAG: build_index()
+                RAG->>Lock: Acquire lock
+                Lock-->>RAG: Lock acquired ✓
+                Note over RAG: Building index...
+                and User 2 waits
+                API->>RAG: build_index()
+                RAG->>Lock: Acquire lock
+                Note over RAG,Lock: Waiting...
+                end
+
+                RAG->>Cache: Check KB cache
+
+                alt Cache Miss
+                RAG->>RAG: Build vector index
+                RAG->>Cache: Store in cache
+                else Cache Hit
+                Cache-->>RAG: Return cached KB
+                end
+
+                RAG->>Lock: Release lock
+                Lock-->>RAG: Lock released
+
+                Note over RAG,Lock: User 2 acquires lock
+
+                RAG->>Lock: Acquire lock
+                Lock-->>RAG: Lock acquired ✓
+                RAG->>Cache: Check KB cache
+                Cache-->>RAG: Return cached KB (from User 1)
+                RAG->>Lock: Release lock
+
+                Note over API: Both users proceed with cached KB
+            </div>
+
+            <div class="insights">
+                <h4>💡 Key Insights:</h4>
+                <ul>
+                    <li><strong>Per-business locks:</strong> Prevents race conditions during index building</li>
+                    <li><strong>Cache sharing:</strong> Second user benefits from first user's index build</li>
+                    <li><strong>Double-check pattern:</strong> Prevents redundant work even if lock acquired</li>
+                    <li><strong>Minimal blocking:</strong> Only locks during critical index building section</li>
+                </ul>
+            </div>
+        </div>
+
+        <footer>
+            <p>Generated from DIAGRAMS.md | Marketing Content Generation Agent Architecture</p>
+            <p>🔗 For full documentation, see ARCHITECTURE.md and REFACTORING_ROADMAP.md</p>
+        </footer>
+    </div>
+
+    <div class="controls">
+        <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})">⬆️ Top</button>
+        <button onclick="window.print()">🖨️ Print</button>
+        <button onclick="exportDiagrams()">💾 Export PNG</button>
+    </div>
+
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            sequence: {
+                diagramMarginX: 50,
+                diagramMarginY: 10,
+                actorMargin: 50,
+                width: 150,
+                height: 65,
+                boxMargin: 10,
+                boxTextMargin: 5,
+                noteMargin: 10,
+                messageMargin: 35
+            }
+        });
+
+        // Smooth scrolling for navigation
+        document.querySelectorAll('nav a').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+
+        // Export diagrams (placeholder - requires additional library like html2canvas)
+        function exportDiagrams() {
+            alert('To export diagrams:\n\n1. Use browser Print → Save as PDF\n2. Or right-click diagrams → Save Image As\n3. Or use https://mermaid.live to export individual diagrams');
+        }
+
+        // Add loading indicator
+        window.addEventListener('load', function () {
+            console.log('All diagrams loaded successfully!');
+        });
+    </script>
+</body>
+
+</html>
