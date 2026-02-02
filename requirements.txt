@@ -17,7 +17,7 @@ slowapi==0.1.9
 structlog==24.1.0
 ratelimit==2.2.1
 limits==3.12.0 
-circuitbreaker==1.4.1
+circuitbreaker==1.4.0
 
 # File upload & utilities
 python-multipart==0.0.17
