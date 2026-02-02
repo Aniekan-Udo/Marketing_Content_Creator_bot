@@ -35,7 +35,7 @@ try:
         check_database_health,
         get_pool_status
     )
-    from .deployer import (
+    from deployer import (
         run_generation_with_learning,
         update_generation_with_human_feedback,
         verify_learning_loop,
