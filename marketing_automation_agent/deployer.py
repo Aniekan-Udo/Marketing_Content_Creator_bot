@@ -154,9 +154,9 @@ class BrandMetricsAnalyzer:
         self.metrics = None
         self._lock = Lock()
         self._load_metrics()
-    
+
     def _load_brand_docs(self) -> List[str]:
-        """Load raw brand documents with error handling"""
+        """Load raw brand documents with error handling and AUTOMATED format detection"""
         data_path = os.path.abspath(f"brand_{self.content_type}s/{self.business_id}")
         
         if not os.path.exists(data_path):
@@ -167,26 +167,97 @@ class BrandMetricsAnalyzer:
         try:
             for filename in os.listdir(data_path):
                 filepath = os.path.join(data_path, filename)
-                if os.path.isfile(filepath):
-                    try:
-                        with open(filepath, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            if content.strip():  # Only add non-empty files
-                                docs.append(content)
-                    except UnicodeDecodeError:
-                        logger.warning(f"Could not decode {filename}, trying latin-1")
+                if not os.path.isfile(filepath):
+                    continue
+                
+                try:
+                    content = None
+                    
+                    # AUTOMATED PDF extraction with multiple fallbacks
+                    if filename.lower().endswith('.pdf'):
+                        # Try pdfplumber first (best quality)
                         try:
-                            with open(filepath, 'r', encoding='latin-1') as f:
-                                docs.append(f.read())
+                            import pdfplumber
+                            text_parts = []
+                            with pdfplumber.open(filepath) as pdf:
+                                for page in pdf.pages:
+                                    page_text = page.extract_text()
+                                    if page_text:
+                                        text_parts.append(page_text)
+                            content = "\n".join(text_parts)
+                            logger.info(f"✓ Extracted PDF with pdfplumber: {filename}")
+                        except ImportError:
+                            logger.info("pdfplumber not available, trying PyPDF2...")
                         except Exception as e:
-                            logger.error(f"Failed to read {filename}: {e}")
-                    except Exception as e:
-                        logger.warning(f"Could not read {filename}: {e}")
+                            logger.warning(f"pdfplumber failed: {e}, trying PyPDF2...")
+                        
+                        # Fallback to PyPDF2
+                        if not content:
+                            try:
+                                import PyPDF2
+                                text_parts = []
+                                with open(filepath, 'rb') as file:
+                                    reader = PyPDF2.PdfReader(file)
+                                    for page in reader.pages:
+                                        page_text = page.extract_text()
+                                        if page_text:
+                                            text_parts.append(page_text)
+                                content = "\n".join(text_parts)
+                                logger.info(f"✓ Extracted PDF with PyPDF2: {filename}")
+                            except ImportError:
+                                logger.info("PyPDF2 not available, trying pdfminer...")
+                            except Exception as e:
+                                logger.warning(f"PyPDF2 failed: {e}, trying pdfminer...")
+                        
+                        # Final fallback to pdfminer
+                        if not content:
+                            try:
+                                from pdfminer.high_level import extract_text
+                                content = extract_text(filepath)
+                                logger.info(f"✓ Extracted PDF with pdfminer: {filename}")
+                            except ImportError:
+                                logger.warning("No PDF libraries available (pdfplumber, PyPDF2, pdfminer)")
+                            except Exception as e:
+                                logger.error(f"All PDF extraction methods failed for {filename}: {e}")
+                    
+                    # DOCX files
+                    elif filename.lower().endswith('.docx'):
+                        try:
+                            import docx
+                            doc = docx.Document(filepath)
+                            content = '\n'.join([para.text for para in doc.paragraphs])
+                            logger.info(f"✓ Extracted DOCX: {filename}")
+                        except ImportError:
+                            logger.warning(f"python-docx not installed, skipping {filename}")
+                        except Exception as e:
+                            logger.error(f"Failed to read DOCX {filename}: {e}")
+                    
+                    # Text files (your original logic)
+                    else:
+                        try:
+                            with open(filepath, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                        except UnicodeDecodeError:
+                            logger.warning(f"Could not decode {filename}, trying latin-1")
+                            try:
+                                with open(filepath, 'r', encoding='latin-1') as f:
+                                    content = f.read()
+                            except Exception as e:
+                                logger.error(f"Failed to read {filename}: {e}")
+                    
+                    # Add if valid
+                    if content and content.strip():
+                        docs.append(content)
+                        logger.info(f"  Loaded: {len(content)} chars")
+                    
+                except Exception as e:
+                    logger.warning(f"Could not read {filename}: {e}")
+                    
         except Exception as e:
             logger.error(f"Error listing directory {data_path}: {e}")
         
         return docs
-    
+        
     def _is_pdf_metadata(self, phrase: str) -> bool:
         """
         Detect and filter PDF metadata artifacts.
