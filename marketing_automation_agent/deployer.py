@@ -1077,7 +1077,7 @@ class Marketing_Rag_System:
                         return None
                     
                     # Build index
-                    logger.info("🏗️  Building vector index...")
+                    logger.info("Building vector index...")
                     index = VectorStoreIndex.from_documents(
                         documents,
                         storage_context=storage_context,
@@ -1455,8 +1455,48 @@ class ContentScoringTool(BaseTool):
 # Global tool instances
 tavily_search = TavilySearchTool()
 
-
+import uuid
+import json
+import re
 # ===== GENERATION MANAGEMENT WITH RETRY =====
+
+def extract_json_with_balanced_braces(text: str) -> dict:
+    """
+    Extract JSON object with proper brace balancing.
+    Handles nested objects correctly (fixes the regex bug).
+    
+    Args:
+        text: Raw text that may contain JSON
+        
+    Returns:
+        Parsed JSON dict
+        
+    Raises:
+        ValueError: If no valid JSON with final_score found
+    """
+    depth = 0
+    start_idx = None
+    
+    for i, char in enumerate(text):
+        if char == '{':
+            if depth == 0:
+                start_idx = i
+            depth += 1
+        elif char == '}':
+            depth -= 1
+            if depth == 0 and start_idx is not None:
+                # Found a complete JSON object
+                potential_json = text[start_idx:i+1]
+                if '"final_score"' in potential_json:
+                    try:
+                        return json.loads(potential_json)
+                    except json.JSONDecodeError:
+                        # Try next JSON object if this one is malformed
+                        start_idx = None
+                        continue
+    
+    raise ValueError("No valid JSON with final_score found")
+
 
 @retry(
     stop=stop_after_attempt(2),
@@ -1469,9 +1509,11 @@ def run_generation_with_learning(business_id: str, topic: str,
     Generate content with automatic learning save.
     Includes retry logic for transient failures.
     
+    FIXED: Proper JSON parsing that handles nested objects
+    FIXED: Never returns empty content
+    
     Returns: (content_dict, generation_id)
     """
-    import uuid
     
     # Generate unique ID
     generation_id = str(uuid.uuid4())
@@ -1520,39 +1562,97 @@ def run_generation_with_learning(business_id: str, topic: str,
     )
     
     # Run generation
+    logger.info(f"Starting crew generation for {generation_id}")
     result = crew.kickoff(inputs={
         "topic": topic,
         "format": format_type,
         "voice": voice
     })
     
-    # Parse result
+    # Convert result to string
     result_str = str(result)
+    logger.info(f"Crew result length: {len(result_str)} chars")
     
-    # Extract components with error handling
+    # ============================================================================
+    # FIXED: Parse result with proper JSON handling
+    # ============================================================================
+    
+    creative_angle = "Unknown"
+    auto_score = 7.5
+    generated_content = ""
+    
+    # Strategy 1: Try to extract JSON with balanced braces
     try:
-        import json
-        import re
+        logger.info("Attempting JSON extraction with balanced braces...")
+        result_data = extract_json_with_balanced_braces(result_str)
         
-        # Try to parse as JSON first
-        json_match = re.search(r'\{[^}]*"final_score"[^}]*\}', result_str, re.DOTALL)
-        if json_match:
-            result_data = json.loads(json_match.group(0))
-            creative_angle = result_data.get('creative_angle', 'Unknown')
-            auto_score = result_data.get('final_score', 7.5)
-            generated_content = result_data.get('generated_content', result_str)
-        else:
+        creative_angle = result_data.get('creative_angle', 'Unknown')
+        auto_score = float(result_data.get('final_score', 7.5))
+        generated_content = result_data.get('generated_content', '')
+        
+        logger.info(f"   JSON parsing successful")
+        logger.info(f"   - Creative angle: {creative_angle}")
+        logger.info(f"   - Auto score: {auto_score}")
+        logger.info(f"   - Content length: {len(generated_content)}")
+        
+        # If content in JSON is empty or too short, extract from full result
+        if not generated_content or len(generated_content.strip()) < 50:
+            logger.warning("Content in JSON is too short, extracting from full result")
+            generated_content = extract_content_from_result(result_str)
+            logger.info(f"   - Extracted content length: {len(generated_content)}")
+    
+    except ValueError as e:
+        # No valid JSON found - use fallback extraction
+        logger.warning(f"JSON extraction failed: {e}")
+        logger.info("Falling back to regex-based extraction...")
+        
+        try:
             creative_angle = extract_creative_angle_from_result(result_str)
             auto_score = extract_score_from_result(result_str)
             generated_content = extract_content_from_result(result_str)
+            
+            logger.info(f"Fallback extraction successful")
+            logger.info(f"- Creative angle: {creative_angle}")
+            logger.info(f"- Auto score: {auto_score}")
+            logger.info(f"- Content length: {len(generated_content)}")
+            
+        except Exception as extraction_error:
+            logger.error(f"Fallback extraction also failed: {extraction_error}", exc_info=True)
+            # Last resort defaults
+            creative_angle = "Unknown Angle"
+            auto_score = 7.5
+            generated_content = result_str
     
     except Exception as e:
-        logger.warning(f"Could not parse result, using defaults: {e}")
-        creative_angle = "Unknown"
+        logger.error(f"Unexpected error during parsing: {e}", exc_info=True)
+        # Last resort: use full result
+        creative_angle = "Unknown Angle"
         auto_score = 7.5
         generated_content = result_str
     
+    # ============================================================================
+    # CRITICAL VALIDATION: Never return empty content
+    # ============================================================================
+    
+    if not generated_content or len(generated_content.strip()) < 10:
+        logger.error("⚠️ Content is empty or too short after all extraction attempts!")
+        logger.error(f"   - Length: {len(generated_content) if generated_content else 0}")
+        logger.error(f"   - Using full result as fallback ({len(result_str)} chars)")
+        generated_content = result_str
+    
+    # Final validation
+    final_content_length = len(generated_content.strip())
+    if final_content_length < 10:
+        error_msg = f"Content generation failed - only {final_content_length} chars generated"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    
+    logger.info(f"✅ Final content validated: {final_content_length} chars")
+    
+    # ============================================================================
     # Save learning with retry
+    # ============================================================================
+    
     try:
         learning_memory.save_learning(
             generation_id=generation_id,
@@ -1564,13 +1664,16 @@ def run_generation_with_learning(business_id: str, topic: str,
             format_type=format_type,
             user_id=user_id
         )
-        logger.info(f"Auto-saved learning for generation {generation_id}")
+        logger.info(f"💾 Auto-saved learning for generation {generation_id}")
     except Exception as e:
         logger.error(f"Failed to auto-save learning: {e}", exc_info=True)
         # Don't crash - return result anyway
     
+    # ============================================================================
     # Return structured data
-    return {
+    # ============================================================================
+    
+    result_dict = {
         "content": generated_content,
         "auto_score": auto_score,
         "creative_angle": creative_angle,
@@ -1578,7 +1681,14 @@ def run_generation_with_learning(business_id: str, topic: str,
         "topic": topic,
         "format_type": format_type,
         "full_result": result_str
-    }, generation_id
+    }
+    
+    logger.info(f"🎉 Generation complete: {generation_id}")
+    logger.info(f"   - Content: {len(generated_content)} chars")
+    logger.info(f"   - Score: {auto_score}/10")
+    logger.info(f"   - Angle: {creative_angle}")
+    
+    return result_dict, generation_id
 
 
 def extract_score_from_result(result_str: str) -> float:
@@ -1647,6 +1757,7 @@ def extract_content_from_result(result_str: str) -> str:
     except Exception as e:
         logger.warning(f"Could not extract content: {e}")
         return result_str
+
 
 
 @retry(

@@ -429,14 +429,9 @@ async def upload_documents(
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
-@app.post("/api/generate", response_model=GenerateResponse)
 @limiter.limit("5/minute")
+@app.post("/api/generate", response_model=GenerateResponse)
 async def generate_content(request: Request, body: GenerateRequest):
-    """
-    Generate marketing content with comprehensive error handling.
-    
-    Rate limited to 10 requests per minute per IP.
-    """
     start_time = time.time()
     
     try:
@@ -449,9 +444,19 @@ async def generate_content(request: Request, body: GenerateRequest):
             voice=body.voice
         )
         
+        # CRITICAL VALIDATION: Check content before returning
+        if not result_dict.get("content"):
+            logger.error("Empty content in result_dict!")
+            raise ValueError("Content generation returned empty content")
+        
+        content_length = len(result_dict["content"].strip())
+        if content_length < 50:
+            logger.error(f"Content too short: {content_length} chars")
+            raise ValueError(f"Generated content too short: {content_length} chars")
+        
         processing_time = round((time.time() - start_time) * 1000, 2)
         
-        logger.info(f"Generation complete: {generation_id} ({processing_time}ms)")
+        logger.info(f"✅ Generation OK: {generation_id} ({content_length} chars, {processing_time}ms)")
         
         return GenerateResponse(
             status="success",
@@ -469,7 +474,6 @@ async def generate_content(request: Request, body: GenerateRequest):
     except Exception as e:
         logger.error(f"Generation failed: {e}", exc_info=True)
         
-        # Check if circuit breaker opened
         if "Circuit breaker OPEN" in str(e):
             raise HTTPException(
                 status_code=503,
@@ -478,9 +482,8 @@ async def generate_content(request: Request, body: GenerateRequest):
         
         raise HTTPException(
             status_code=500, 
-            detail=f"Generation failed: {str(e)[:200]}"
+            detail=f"Generation failed: {str(e)}"
         )
-
 
 @app.post("/api/feedback", response_model=FeedbackResponse)
 @limiter.limit("5/minute")
