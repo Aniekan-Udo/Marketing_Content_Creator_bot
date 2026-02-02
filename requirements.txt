@@ -29,9 +29,15 @@ python-multipart==0.0.17
 python-dotenv==1.0.0
 pydantic==2.9.2
 structlog==24.1.0
-tenacity==9.0.0
+tenacity==8.5.0  # FIXED: Changed from 9.0.0 to 8.5.0 (compatible with langchain-core)
 
 # PDF processing
 pdfplumber==0.11.4
 PyPDF2==3.0.1
 python-docx==1.1.2
+
+# RAG & Embeddings (LlamaIndex ecosystem)
+llama-index-core==0.10.57
+llama-index-embeddings-fastembed==0.1.3
+llama-index-vector-stores-postgres==0.1.11
+llama-index-llms-groq==0.1.4
