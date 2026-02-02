@@ -15,6 +15,8 @@ tavily-python==0.3.3
 # Rate limiting & logging
 slowapi==0.1.9
 structlog==24.1.0
+ratelimit==2.2.1
+limits==3.12.0 
 
 # File upload & utilities
 python-multipart==0.0.17
