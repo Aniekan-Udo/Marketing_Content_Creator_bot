@@ -26,7 +26,7 @@ circuitbreaker==1.4.0
 
 # File upload & utilities
 python-multipart==0.0.17
-python-dotenv==1.0.1
+python-dotenv==1.0.0
 pydantic==2.9.2
 structlog==24.1.0
 tenacity==9.0.0
