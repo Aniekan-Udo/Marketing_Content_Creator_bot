@@ -26,7 +26,7 @@ load_dotenv()
 
 # Internal Imports
 try:
-    from .db import (
+    from db import (
         session_maker, 
         init_db, 
         User, 
