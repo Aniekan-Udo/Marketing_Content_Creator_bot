@@ -26,7 +26,7 @@ load_dotenv()
 
 # Internal Imports
 try:
-    from .db import (
+    from db import (
         session_maker, 
         init_db, 
         User, 
@@ -35,7 +35,7 @@ try:
         check_database_health,
         get_pool_status
     )
-    from .deployer import (
+    from deployer import (
         run_generation_with_learning,
         update_generation_with_human_feedback,
         verify_learning_loop,

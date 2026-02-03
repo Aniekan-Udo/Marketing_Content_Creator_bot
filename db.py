@@ -1,10 +1,4 @@
-"""
-Production-ready database models and configuration with:
-- Connection pooling with health checks
-- Retry logic with exponential backoff
-- Proper error handling and logging
-- Transaction management
-"""
+
 
 import os
 from datetime import datetime
