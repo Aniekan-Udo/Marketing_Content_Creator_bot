@@ -1,3 +1,4 @@
+# CORE FastAPI + DB + AI (15 pkgs, 2min deploy)
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 python-multipart==0.0.9
@@ -8,20 +9,8 @@ crewai==0.86.0
 litellm==1.44.28
 groq==0.11.0
 tavily-python==0.5.0
-llama-index-core==0.11.21
-llama-index-embeddings-fastembed==0.2.0
-llama-index-vector-stores-postgres==0.2.1
-llama-index-llms-groq==0.2.0
-fastembed==0.4.1
-circuitbreaker==1.4.0
-ratelimit==2.2.1
 slowapi==0.1.9
 python-dotenv==1.0.1
-pydantic==2.9.2
-structlog==24.4.0
+ratelimit==2.2.1
+circuitbreaker==1.4.0
 tenacity==8.5.0
-pypdf==5.1.0
-python-docx==1.1.2
-requests==2.32.3
-pillow==10.4.0
-numpy==1.26.4
