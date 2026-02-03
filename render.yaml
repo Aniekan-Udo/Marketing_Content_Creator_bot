@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: marketing-content-bot
+    runtime: docker  # CRITICAL: Tells Render to use Dockerfile
+    plan: starter    # Change to 'free' for free tier (has sleep after inactivity)
+    
+    # Docker configuration
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    
+    # Environment variables
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false  # Set manually in Render dashboard
+      
+      - key: POSTGRES_URI
+        sync: false  # Set manually in Render dashboard
+      
+      - key: POSTGRES_ASYNC_URI
+        sync: false  # Set manually in Render dashboard
+      
+      - key: TAVILY_API_KEY
+        sync: false  # Set manually in Render dashboard (optional)
+      
+      - key: LOG_FORMAT
+        value: JSON
+      
+      - key: PORT
+        value: 8000
+    
+    # Health check
+    healthCheckPath: /health
+    
+    # Auto-deploy on push to main branch
+    autoDeploy: true
+    branch: main
+    
+    # Build settings
+    buildFilter:
+      paths:
+        - app.py
+        - deployer.py
+        - db.py
+        - requirements.txt
+        - Dockerfile
+        - .dockerignore

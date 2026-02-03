@@ -155,7 +155,7 @@ class BrandMetricsAnalyzer:
         self.metrics = None
         self._lock = Lock()
         self._load_metrics()
-    
+
     def _load_brand_docs(self) -> List[str]:
         """Load raw brand documents with error handling and AUTOMATED format detection"""
         data_path = os.path.abspath(f"brand_{self.content_type}s/{self.business_id}")
@@ -258,7 +258,7 @@ class BrandMetricsAnalyzer:
             logger.error(f"Error listing directory {data_path}: {e}")
         
         return docs
-    
+        
     def _is_pdf_metadata(self, phrase: str) -> bool:
         """
         Detect and filter PDF metadata artifacts.
