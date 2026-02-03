@@ -1,4 +1,3 @@
-# CORE FastAPI + DB + AI (15 pkgs, 2min deploy)
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 python-multipart==0.0.9
@@ -6,6 +5,7 @@ psycopg2-binary==2.9.9
 sqlalchemy==2.0.35
 pgvector==0.2.5
 crewai==0.86.0
+crewai-tools==0.17.0
 litellm==1.44.28
 groq==0.11.0
 tavily-python==0.5.0
@@ -13,4 +13,4 @@ slowapi==0.1.9
 python-dotenv==1.0.1
 ratelimit==2.2.1
 circuitbreaker==1.4.0
-tenacity==8.5.0
+structlog==24.4.0
