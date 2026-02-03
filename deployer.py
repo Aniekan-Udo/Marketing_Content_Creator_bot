@@ -30,7 +30,7 @@ from tavily import TavilyClient
 from llama_index.core import Settings, SimpleDirectoryReader, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SemanticSplitterNodeParser, SimpleNodeParser
 from llama_index.vector_stores.postgres import PGVectorStore
-from llama_index.embeddings.fastembed import FastEmbedEmbedding
+from llama_index.embeddings.cohere import CohereEmbedding
 
 
 
@@ -1064,7 +1064,10 @@ class Marketing_Rag_System:
             try:
                 logger.info("Setting up embedding model...")
                 
-                self.embed_model = FastEmbedEmbedding(model_name="BAAI/bge-small-en-v1.5")
+                self.embed_model = CohereEmbedding(
+            api_key=os.getenv("COHERE_API_KEY"),
+            model_name=os.getenv("COHERE_EMBED_MODEL", "embed-english-light-v3.0")
+        )
                 self._embed_model_cache = self.embed_model
                 logger.info("Embedding model ready!")
                 return self.embed_model
