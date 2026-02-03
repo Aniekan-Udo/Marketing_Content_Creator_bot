@@ -1,9 +1,8 @@
 # PRODUCTION MARKETING AI - LLAMAINDEX MODULES
 llama-index
 llama-index-llms-groq
-llama-index-embeddings-fastembed
+llama-index-embeddings-huggingface  # Lighter alternative
 llama-index-vector-stores-postgres
-fastembed
 
 # Core stack
 fastapi
@@ -23,3 +22,4 @@ ratelimit
 circuitbreaker
 structlog
 pydantic-settings
+sentence-transformers  
