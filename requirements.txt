@@ -1,9 +1,12 @@
+# PRODUCTION READY - 18 CORE PACKAGES (3min deploy)
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 python-multipart==0.0.9
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.35
 pgvector==0.2.5
+llama-index-core==0.11.21
+llama-index-vector-stores-postgres==0.2.1
 crewai==0.86.0
 crewai-tools==0.17.0
 litellm==1.44.28
