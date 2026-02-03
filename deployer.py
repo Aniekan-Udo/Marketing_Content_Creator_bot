@@ -30,9 +30,7 @@ from tavily import TavilyClient
 from llama_index.core import Settings, SimpleDirectoryReader, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SemanticSplitterNodeParser, SimpleNodeParser
 from llama_index.vector_stores.postgres import PGVectorStore
-#from llama_index.embeddings.fastembed import FastEmbedEmbedding
-
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.embeddings.fastembed import FastEmbedEmbedding
 
 
 
@@ -1066,7 +1064,7 @@ class Marketing_Rag_System:
             try:
                 logger.info("Setting up embedding model...")
                 
-                self.embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+                self.embed_model = FastEmbedEmbedding(model_name="BAAI/bge-small-en-v1.5")
                 self._embed_model_cache = self.embed_model
                 logger.info("Embedding model ready!")
                 return self.embed_model
