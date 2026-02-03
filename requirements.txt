@@ -3,6 +3,7 @@ llama-index-core==0.11.21
 llama-index-readers-base==0.2.1
 llama-index-readers-file==0.2.1
 llama-index-llms-groq==0.2.0
+llama-index>=0.9.0
 llama-index-embeddings-fastembed==0.2.0
 llama-index-vector-stores-postgres==0.2.1
 
@@ -25,3 +26,4 @@ circuitbreaker==1.4.0
 structlog==24.4.0
 fastembed==0.4.1
 pydantic-settings==2.12.0
+
