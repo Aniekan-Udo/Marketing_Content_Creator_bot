@@ -3,6 +3,7 @@ llama-index
 llama-index-llms-groq
 llama-index-embeddings-fastembed
 llama-index-vector-stores-postgres
+fastembed
 
 # Core stack
 fastapi
