@@ -336,11 +336,33 @@ def init_db():
     """
     Initialize database with retry logic.
     Creates all tables if they don't exist.
+    Also ensures the 'file_content' column exists in 'brand_documents'.
     """
     try:
         logger.info("Initializing database...")
         Model.metadata.create_all(engine)
-        logger.info("Database tables created successfully")
+        
+        # Ensure 'file_content' column exists (self-healing migration)
+        try:
+            from sqlalchemy import text
+            with engine.begin() as conn:
+                # Check if column exists
+                check_sql = text("""
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name='brand_documents' 
+                    AND column_name='file_content'
+                """)
+                result = conn.execute(check_sql).fetchone()
+                
+                if not result:
+                    logger.info("Adding missing 'file_content' column to 'brand_documents'...")
+                    conn.execute(text("ALTER TABLE brand_documents ADD COLUMN file_content TEXT"))
+                    logger.info("Successfully added 'file_content' column")
+        except Exception as migration_error:
+            logger.warning(f"Self-healing migration failed (non-critical): {migration_error}")
+
+        logger.info("Database initialization completed")
         return True
     except Exception as e:
         logger.error(f"Database initialization failed: {e}", exc_info=True)
