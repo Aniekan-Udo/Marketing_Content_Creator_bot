@@ -16,6 +16,7 @@ psycopg2-binary
 sqlalchemy
 pgvector
 crewai
+crewai-tools
 litellm
 email-validator
 apscheduler
@@ -27,6 +28,7 @@ ratelimit
 circuitbreaker
 structlog
 pydantic-settings
+
 
 
 
