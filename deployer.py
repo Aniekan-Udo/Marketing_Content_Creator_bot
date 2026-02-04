@@ -522,14 +522,18 @@ class BrandMetricsAnalyzer:
                 'signature_phrases': self._consolidate_phrases([m['common_phrases'] for m in all_metrics]),
                 'sample_count': len(docs)
             }
-            
-            logger.info(f"Metrics loaded: {self.business_id}/{self.content_type}")
+
+
+            logger.info(f"   BRAND METRICS LEARNED for {self.business_id}/{self.content_type}:")
+            logger.info(f"   Analyzed {self.metrics['sample_count']} documents")
             logger.info(f"   Target sentence length: {self.metrics['target_sentence_length']:.1f} words")
             logger.info(f"   Target sentences/para: {self.metrics['target_sentences_per_para']:.1f}")
-            logger.info(f"   Signature phrases: {len(self.metrics['signature_phrases'])}")
+            logger.info(f"   Uses bullets: {self.metrics['uses_bullets']}")
+            logger.info(f"   Signature phrases found: {len(self.metrics['signature_phrases'])}")
             
             if self.metrics['signature_phrases']:
                 logger.info(f"   Sample phrases: {self.metrics['signature_phrases'][:5]}")
+                
     
     def _consolidate_phrases(self, phrase_lists: List[List[str]]) -> List[str]:
         """
