@@ -3,8 +3,7 @@
 llama-index-llms-groq
 llama-index-embeddings-fastembed
 llama-index-vector-stores-postgres
-fastembed
-llama-index-embeddings-cohere
+#llama-index-embeddings-cohere
 llama-index-readers-file
 
 # Core stack
@@ -25,4 +24,5 @@ ratelimit
 circuitbreaker
 structlog
 pydantic-settings
+
 
