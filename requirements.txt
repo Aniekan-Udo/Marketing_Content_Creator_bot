@@ -18,6 +18,7 @@ pgvector
 crewai
 crewai-tools
 litellm
+email-validator
 apscheduler
 groq
 tavily-python
@@ -27,6 +28,7 @@ ratelimit
 circuitbreaker
 structlog
 pydantic-settings
+
 
 
 
