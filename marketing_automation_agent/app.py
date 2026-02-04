@@ -396,18 +396,48 @@ async def upload_documents(
 
                     file_size = os.path.getsize(filepath)
                     
-                    # Decode file content to text for database storage
+                    # Extract text content for database storage
+                    file_content_text = None
                     try:
-                        file_content_text = content.decode('utf-8')
-                    except UnicodeDecodeError:
-                        # Try other encodings if UTF-8 fails
-                        try:
-                            file_content_text = content.decode('latin-1')
-                        except Exception as e:
-                            logger.warning(f"Could not decode {filename}: {e}")
-                            file_content_text = None
+                        # Try extraction based on file extension
+                        if filename.lower().endswith('.pdf'):
+                            try:
+                                import pdfplumber
+                                with pdfplumber.open(filepath) as pdf:
+                                    file_content_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+                            except ImportError:
+                                try:
+                                    import PyPDF2
+                                    with open(filepath, 'rb') as pdf_file:
+                                        reader = PyPDF2.PdfReader(pdf_file)
+                                        file_content_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+                                except Exception:
+                                    pass
+                        
+                        elif filename.lower().endswith('.docx'):
+                            try:
+                                import docx
+                                doc = docx.Document(filepath)
+                                file_content_text = "\n".join(para.text for para in doc.paragraphs)
+                            except ImportError:
+                                pass
 
-                    # Save to database WITH content
+                        # Fallback to direct decoding
+                        if not file_content_text:
+                            try:
+                                file_content_text = content.decode('utf-8')
+                            except UnicodeDecodeError:
+                                file_content_text = content.decode('latin-1')
+
+                    except Exception as e:
+                        logger.warning(f"Could not extract/decode {filename}: {e}")
+                        file_content_text = None
+
+                    # CRITICAL: Sanitize NUL characters for PostgreSQL
+                    if file_content_text:
+                        file_content_text = file_content_text.replace('\u0000', '')
+
+                    # Save to database WITH sanitized content
                     doc = BrandDocument(
                         user_id=user.id,
                         business_id=business_id,
@@ -415,7 +445,7 @@ async def upload_documents(
                         content_type=content_type,
                         file_path=filepath,
                         file_size_bytes=file_size,
-                        file_content=file_content_text,  # Store content in DB
+                        file_content=file_content_text,  # Store sanitized content in DB
                         status='uploaded'
                     )
                     session.add(doc)
