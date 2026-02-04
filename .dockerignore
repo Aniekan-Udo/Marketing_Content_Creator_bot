@@ -11,7 +11,21 @@ ENV/
 
 # IDEs
 .vscode/
-.idea/
+.idea/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
+.git
+.gitignore
+README.md
+tests/
+notebooks/
+
 *.swp
 *.swo
 *~

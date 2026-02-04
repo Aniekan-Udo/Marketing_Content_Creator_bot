@@ -30,7 +30,10 @@ from tavily import TavilyClient
 from llama_index.core import Settings, SimpleDirectoryReader, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SemanticSplitterNodeParser, SimpleNodeParser
 from llama_index.vector_stores.postgres import PGVectorStore
+#from llama_index.embeddings.cohere import CohereEmbedding
 from llama_index.embeddings.fastembed import FastEmbedEmbedding
+
+
 
 # Local Imports
 from db import (
@@ -519,14 +522,18 @@ class BrandMetricsAnalyzer:
                 'signature_phrases': self._consolidate_phrases([m['common_phrases'] for m in all_metrics]),
                 'sample_count': len(docs)
             }
-            
-            logger.info(f"Metrics loaded: {self.business_id}/{self.content_type}")
+
+
+            logger.info(f"   BRAND METRICS LEARNED for {self.business_id}/{self.content_type}:")
+            logger.info(f"   Analyzed {self.metrics['sample_count']} documents")
             logger.info(f"   Target sentence length: {self.metrics['target_sentence_length']:.1f} words")
             logger.info(f"   Target sentences/para: {self.metrics['target_sentences_per_para']:.1f}")
-            logger.info(f"   Signature phrases: {len(self.metrics['signature_phrases'])}")
+            logger.info(f"   Uses bullets: {self.metrics['uses_bullets']}")
+            logger.info(f"   Signature phrases found: {len(self.metrics['signature_phrases'])}")
             
             if self.metrics['signature_phrases']:
                 logger.info(f"   Sample phrases: {self.metrics['signature_phrases'][:5]}")
+                
     
     def _consolidate_phrases(self, phrase_lists: List[List[str]]) -> List[str]:
         """
@@ -1061,7 +1068,14 @@ class Marketing_Rag_System:
             
             try:
                 logger.info("Setting up embedding model...")
-                self.embed_model = FastEmbedEmbedding(model_name="BAAI/bge-small-en-v1.5")
+                
+        #         self.embed_model = CohereEmbedding(
+        #     api_key=os.getenv("COHERE_API_KEY"),
+        #     model_name=os.getenv("COHERE_EMBED_MODEL", "embed-english-light-v3.0")
+        # )
+                self.embed_model=FastEmbedEmbedding(
+    model_name="BAAI/bge-small-en-v1.5"
+)
                 self._embed_model_cache = self.embed_model
                 logger.info("Embedding model ready!")
                 return self.embed_model
