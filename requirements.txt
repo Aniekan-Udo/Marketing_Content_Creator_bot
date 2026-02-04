@@ -18,8 +18,9 @@ pgvector
 crewai
 crewai-tools
 litellm
-email-validator
-apscheduler
+litellm[proxy]
+#email-validator
+#apscheduler
 groq
 tavily-python
 slowapi
@@ -28,6 +29,7 @@ ratelimit
 circuitbreaker
 structlog
 pydantic-settings
+
 
 
 
