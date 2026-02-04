@@ -15,9 +15,10 @@ python-multipart
 psycopg2-binary
 sqlalchemy
 pgvector
-crewai[no-openai]
-#email-validator
-#apscheduler
+crewai
+litellm
+email-validator
+apscheduler
 groq
 tavily-python
 slowapi
@@ -26,6 +27,7 @@ ratelimit
 circuitbreaker
 structlog
 pydantic-settings
+
 
 
 
