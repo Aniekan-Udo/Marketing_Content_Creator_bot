@@ -419,9 +419,19 @@ class BrandMetricsAnalyzer:
             paragraphs = [p.strip() for p in paragraphs if p.strip()]
             
             if len(paragraphs) < 3:
+                # Try single newline split
                 paragraphs = re.split(r'\n+', text)
-                # Use median word count for filtering
-                paragraphs = [p.strip() for p in paragraphs if p.strip() and len(p.split()) > median_sentence_len]
+                # Filter out metadata lines
+                paragraphs = [p.strip() for p in paragraphs if p.strip() and len(p.split()) >= min_sentence_words]
+            
+            # CRITICAL: If still 1 big block, use virtual paragraphs to avoid skewed metrics
+            if len(paragraphs) <= 2 and len(sentences) > 10:
+                logger.info(f"Using virtual paragraphs for density calculation ({len(sentences)} sentences)")
+                chunk_size = 4
+                virtual_paras = []
+                for i in range(0, len(sentences), chunk_size):
+                    virtual_paras.append(" ".join(sentences[i:i+chunk_size]))
+                paragraphs = virtual_paras
             
             # Sentences per paragraph with adaptive logic
             sentences_per_para = []
@@ -603,12 +613,12 @@ class BrandMetricsAnalyzer:
             target_len = self.metrics['target_sentence_length']
             actual_len = content_metrics['avg_sentence_length']
             len_deviation = abs(actual_len - target_len) / target_len if target_len > 0 else 1.0
-            sentence_length_score = max(0, 10 - (len_deviation * 20))
+            sentence_length_score = max(0, 10 - (len_deviation * 12))
             
             target_para = self.metrics['target_sentences_per_para']
             actual_para = content_metrics['avg_sentences_per_para']
             para_deviation = abs(actual_para - target_para) / target_para if target_para > 0 else 1.0
-            para_structure_score = max(0, 10 - (para_deviation * 15))
+            para_structure_score = max(0, 10 - (para_deviation * 10))
             
             format_aligned = True
             if self.metrics['uses_bullets'] != content_metrics['has_bullets']:
@@ -1213,13 +1223,49 @@ class Marketing_Rag_System:
                 except Exception as load_error:
                     logger.info(f"Building NEW index for {self.table_name}")
                     
-                    # Load documents
-                    documents = SimpleDirectoryReader(self.data_path).load_data()
-                    logger.info(f"Loaded {len(documents)} documents")
+                    # PRIORITY 1: Load documents from DATABASE
+                    documents = []
+                    try:
+                        from llama_index.core import Document
+                        from db import BrandDocument
+                        
+                        logger.info(f"Checking database for {self.business_id}/{self.content_type} documents...")
+                        with get_db_session() as session:
+                            db_docs = session.query(BrandDocument).filter_by(
+                                business_id=self.business_id,
+                                content_type=self.content_type
+                            ).all()
+                            
+                            logger.info(f"Found {len(db_docs)} documents in database")
+                            
+                            for db_doc in db_docs:
+                                if db_doc.file_content:
+                                    # Create LlamaIndex Document from database content
+                                    doc = Document(
+                                        text=db_doc.file_content,
+                                        metadata={
+                                            "filename": db_doc.filename,
+                                            "business_id": db_doc.business_id,
+                                            "content_type": db_doc.content_type,
+                                            "source": "database"
+                                        }
+                                    )
+                                    documents.append(doc)
+                                    logger.info(f"   ✓ Loaded from DB: {db_doc.filename}")
+                    except Exception as db_error:
+                        logger.warning(f"Database document loading failed: {db_error}")
+
+                    # FALLBACK: Load from filesystem
+                    if not documents:
+                        logger.info("No documents in database, checking filesystem...")
+                        if os.path.exists(self.data_path):
+                            documents = SimpleDirectoryReader(self.data_path).load_data()
                     
                     if not documents:
-                        logger.error(f"No documents loaded from {self.data_path}")
+                        logger.error(f"No documents loaded for indexing")
                         return None
+                    
+                    logger.info(f"Total documents for indexing: {len(documents)}")
                     
                     # Build index
                     logger.info("Building vector index...")
@@ -2179,21 +2225,18 @@ class ContentCrewFactory:
                 Now YOU evaluate these three dimensions (0-10 each):
                 
                 A) Tone Alignment (0-10):
-                - Does it use personal voice ("I", storytelling, anecdotes)?
-                - Is it conversational and warm, not clinical?
-                - Does it match the brand's introspective, encouraging style?
-                - Look for: personal experiences, rhetorical questions, vulnerability
+                - Personal voice ("I", storytelling, anecdotes)?
+                - Conversational and warm?
                 
                 B) Creative Freshness (0-10):
-                - Is the angle unique and engaging?
-                - Does it avoid generic health-blog clichés?
-                - Would it stand out in a feed?
-                - Is there an unexpected perspective or insight?
+                - Unique angle?
+                - Avoid generic clichés?
                 
                 C) Practical Value (0-10):
-                - Is it actionable and useful?
-                - Does it provide clear, practical guidance?
-                - Will readers walk away with something concrete?
+                - Actionable and useful?
+                
+                SCORING RULE: NEVER return 0 unless content is empty/toxic. 
+                If content is mediocre but safe, use 4.0-6.0 range.
                 
                 Calculate: LLM_SCORE = (Tone + Freshness + Value) / 3
 
