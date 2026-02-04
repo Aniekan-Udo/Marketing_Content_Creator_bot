@@ -390,13 +390,24 @@ async def upload_documents(
                     filename = file.filename
                     filepath = os.path.join(target_folder, filename)
 
-                    # Save file
+                    # Save to filesystem (optional, for backward compatibility)
                     with open(filepath, 'wb') as f:
                         f.write(content)
 
                     file_size = os.path.getsize(filepath)
+                    
+                    # Decode file content to text for database storage
+                    try:
+                        file_content_text = content.decode('utf-8')
+                    except UnicodeDecodeError:
+                        # Try other encodings if UTF-8 fails
+                        try:
+                            file_content_text = content.decode('latin-1')
+                        except Exception as e:
+                            logger.warning(f"Could not decode {filename}: {e}")
+                            file_content_text = None
 
-                    # Save to database
+                    # Save to database WITH content
                     doc = BrandDocument(
                         user_id=user.id,
                         business_id=business_id,
@@ -404,6 +415,7 @@ async def upload_documents(
                         content_type=content_type,
                         file_path=filepath,
                         file_size_bytes=file_size,
+                        file_content=file_content_text,  # Store content in DB
                         status='uploaded'
                     )
                     session.add(doc)
@@ -456,7 +468,7 @@ async def generate_content(request: Request, body: GenerateRequest):
         
         processing_time = round((time.time() - start_time) * 1000, 2)
         
-        logger.info(f"✅ Generation OK: {generation_id} ({content_length} chars, {processing_time}ms)")
+        logger.info(f"Generation OK: {generation_id} ({content_length} chars, {processing_time}ms)")
         
         return GenerateResponse(
             status="success",
@@ -592,6 +604,30 @@ async def verify_learning(request:Request, business_id: str, content_type: str =
         raise HTTPException(
             status_code=500, 
             detail=f"Verification failed: {str(e)[:200]}"
+        )
+
+
+@app.post("/api/refresh-metrics/{business_id}")
+@limiter.limit("5/minute")
+async def refresh_metrics(request: Request, business_id: str, content_type: str = "blog"):
+    """
+    Refresh brand metrics for a business.
+    Useful after uploading new documents to ensure the generator uses the latest style.
+    """
+    try:
+        from deployer import BrandMetricsAnalyzer
+        analyzer = BrandMetricsAnalyzer(business_id, content_type)
+        analyzer.refresh_metrics()
+        
+        return {
+            "success": True,
+            "message": f"Metrics refreshed for {business_id}/{content_type}"
+        }
+    except Exception as e:
+        logger.error(f"Metrics refresh failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Refresh failed: {str(e)}"
         )
 
 

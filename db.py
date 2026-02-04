@@ -81,6 +81,7 @@ class BrandDocument(Model):
     content_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     file_path: Mapped[Optional[str]] = mapped_column(Text)
     file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer)
+    file_content: Mapped[Optional[str]] = mapped_column(Text)  # Store actual file content
     
     status: Mapped[str] = mapped_column(String(50), server_default='pending', nullable=False)
     error_message: Mapped[Optional[str]] = mapped_column(Text)

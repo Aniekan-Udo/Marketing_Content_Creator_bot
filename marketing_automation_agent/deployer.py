@@ -157,106 +157,132 @@ class BrandMetricsAnalyzer:
         self._load_metrics()
 
     def _load_brand_docs(self) -> List[str]:
-        """Load raw brand documents with error handling and AUTOMATED format detection"""
-        data_path = os.path.abspath(f"brand_{self.content_type}s/{self.business_id}")
-        
-        if not os.path.exists(data_path):
-            logger.warning(f"Brand docs path not found: {data_path}")
-            return []
-        
+        """Load raw brand documents from DATABASE first, filesystem as fallback"""
         docs = []
+        
+        # PRIORITY 1: Load from database
         try:
-            for filename in os.listdir(data_path):
-                filepath = os.path.join(data_path, filename)
-                if not os.path.isfile(filepath):
-                    continue
+            logger.info(f"Loading brand docs from database for {self.business_id}/{self.content_type}...")
+            with get_db_session() as session:
+                db_docs = session.query(BrandDocument).filter_by(
+                    business_id=self.business_id,
+                    content_type=self.content_type
+                ).all()
                 
-                try:
-                    content = None
+                logger.info(f"Found {len(db_docs)} documents in database")
+                
+                for db_doc in db_docs:
+                    if db_doc.file_content:
+                        docs.append(db_doc.file_content)
+                        logger.info(f"Loaded from DB: {db_doc.filename} ({len(db_doc.file_content)} chars)")
+                    else:
+                        logger.warning(f"WARNING: No content in DB for: {db_doc.filename}")
+        
+        except Exception as db_error:
+            logger.warning(f"Database document loading failed: {db_error}")
+        
+        # FALLBACK: Load from filesystem if database is empty (for local dev)
+        if not docs:
+            logger.info("No documents in database, checking filesystem...")
+            data_path = os.path.abspath(f"brand_{self.content_type}s/{self.business_id}")
+            
+            if not os.path.exists(data_path):
+                logger.warning(f"Brand docs path not found: {data_path}")
+                return []
+            
+            try:
+                for filename in os.listdir(data_path):
+                    filepath = os.path.join(data_path, filename)
+                    if not os.path.isfile(filepath):
+                        continue
                     
-                    # AUTOMATED PDF extraction with multiple fallbacks
-                    if filename.lower().endswith('.pdf'):
-                        # Try pdfplumber first (best quality)
-                        try:
-                            import pdfplumber
-                            text_parts = []
-                            with pdfplumber.open(filepath) as pdf:
-                                for page in pdf.pages:
-                                    page_text = page.extract_text()
-                                    if page_text:
-                                        text_parts.append(page_text)
-                            content = "\n".join(text_parts)
-                            logger.info(f"✓ Extracted PDF with pdfplumber: {filename}")
-                        except ImportError:
-                            logger.info("pdfplumber not available, trying PyPDF2...")
-                        except Exception as e:
-                            logger.warning(f"pdfplumber failed: {e}, trying PyPDF2...")
+                    try:
+                        content = None
                         
-                        # Fallback to PyPDF2
-                        if not content:
+                        # AUTOMATED PDF extraction with multiple fallbacks
+                        if filename.lower().endswith('.pdf'):
+                            # Try pdfplumber first (best quality)
                             try:
-                                import PyPDF2
+                                import pdfplumber
                                 text_parts = []
-                                with open(filepath, 'rb') as file:
-                                    reader = PyPDF2.PdfReader(file)
-                                    for page in reader.pages:
+                                with pdfplumber.open(filepath) as pdf:
+                                    for page in pdf.pages:
                                         page_text = page.extract_text()
                                         if page_text:
                                             text_parts.append(page_text)
                                 content = "\n".join(text_parts)
-                                logger.info(f"✓ Extracted PDF with PyPDF2: {filename}")
+                                logger.info(f"Extracted PDF with pdfplumber: {filename}")
                             except ImportError:
-                                logger.info("PyPDF2 not available, trying pdfminer...")
+                                logger.info("pdfplumber not available, trying PyPDF2...")
                             except Exception as e:
-                                logger.warning(f"PyPDF2 failed: {e}, trying pdfminer...")
+                                logger.warning(f"pdfplumber failed: {e}, trying PyPDF2...")
+                            
+                            # Fallback to PyPDF2
+                            if not content:
+                                try:
+                                    import PyPDF2
+                                    text_parts = []
+                                    with open(filepath, 'rb') as file:
+                                        reader = PyPDF2.PdfReader(file)
+                                        for page in reader.pages:
+                                            page_text = page.extract_text()
+                                            if page_text:
+                                                text_parts.append(page_text)
+                                    content = "\n".join(text_parts)
+                                    logger.info(f"Extracted PDF with PyPDF2: {filename}")
+                                except ImportError:
+                                    logger.info("PyPDF2 not available, trying pdfminer...")
+                                except Exception as e:
+                                    logger.warning(f"PyPDF2 failed: {e}, trying pdfminer...")
+                            
+                            # Final fallback to pdfminer
+                            if not content:
+                                try:
+                                    from pdfminer.high_level import extract_text
+                                    content = extract_text(filepath)
+                                    logger.info(f"Extracted PDF with pdfminer: {filename}")
+                                except ImportError:
+                                    logger.warning("No PDF libraries available (pdfplumber, PyPDF2, pdfminer)")
+                                except Exception as e:
+                                    logger.error(f"All PDF extraction methods failed for {filename}: {e}")
                         
-                        # Final fallback to pdfminer
-                        if not content:
+                        # DOCX files
+                        elif filename.lower().endswith('.docx'):
                             try:
-                                from pdfminer.high_level import extract_text
-                                content = extract_text(filepath)
-                                logger.info(f"✓ Extracted PDF with pdfminer: {filename}")
+                                import docx
+                                doc = docx.Document(filepath)
+                                content = '\n'.join([para.text for para in doc.paragraphs])
+                                logger.info(f"Extracted DOCX: {filename}")
                             except ImportError:
-                                logger.warning("No PDF libraries available (pdfplumber, PyPDF2, pdfminer)")
+                                logger.warning(f"python-docx not installed, skipping {filename}")
                             except Exception as e:
-                                logger.error(f"All PDF extraction methods failed for {filename}: {e}")
-                    
-                    # DOCX files
-                    elif filename.lower().endswith('.docx'):
-                        try:
-                            import docx
-                            doc = docx.Document(filepath)
-                            content = '\n'.join([para.text for para in doc.paragraphs])
-                            logger.info(f"✓ Extracted DOCX: {filename}")
-                        except ImportError:
-                            logger.warning(f"python-docx not installed, skipping {filename}")
-                        except Exception as e:
-                            logger.error(f"Failed to read DOCX {filename}: {e}")
-                    
-                    # Text files (your original logic)
-                    else:
-                        try:
-                            with open(filepath, 'r', encoding='utf-8') as f:
-                                content = f.read()
-                        except UnicodeDecodeError:
-                            logger.warning(f"Could not decode {filename}, trying latin-1")
+                                logger.error(f"Failed to read DOCX {filename}: {e}")
+                        
+                        # Text files
+                        else:
                             try:
-                                with open(filepath, 'r', encoding='latin-1') as f:
+                                with open(filepath, 'r', encoding='utf-8') as f:
                                     content = f.read()
-                            except Exception as e:
-                                logger.error(f"Failed to read {filename}: {e}")
-                    
-                    # Add if valid
-                    if content and content.strip():
-                        docs.append(content)
-                        logger.info(f"  Loaded: {len(content)} chars")
-                    
-                except Exception as e:
-                    logger.warning(f"Could not read {filename}: {e}")
-                    
-        except Exception as e:
-            logger.error(f"Error listing directory {data_path}: {e}")
+                            except UnicodeDecodeError:
+                                logger.warning(f"Could not decode {filename}, trying latin-1")
+                                try:
+                                    with open(filepath, 'r', encoding='latin-1') as f:
+                                        content = f.read()
+                                except Exception as e:
+                                    logger.error(f"Failed to read {filename}: {e}")
+                        
+                        # Add if valid
+                        if content and content.strip():
+                            docs.append(content)
+                            logger.info(f"  Loaded from filesystem: {len(content)} chars")
+                        
+                    except Exception as e:
+                        logger.warning(f"Could not read {filename}: {e}")
+                        
+            except Exception as e:
+                logger.error(f"Error listing directory {data_path}: {e}")
         
+        logger.info(f"Total documents loaded: {len(docs)}")
         return docs
         
     def _is_pdf_metadata(self, phrase: str) -> bool:
@@ -382,7 +408,7 @@ class BrandMetricsAnalyzer:
             sentence_lengths = [len(s.split()) for s in sentences]
             median_sentence_len = statistics.median(sentence_lengths) if sentence_lengths else 15
             
-            # Use median to filter outliers instead of hardcoded 10
+            # Use median to filter outliers
             min_sentence_words = max(5, int(median_sentence_len * 0.3))
             sentences = [s for s in sentences if len(s.split()) >= min_sentence_words]
             
@@ -527,6 +553,15 @@ class BrandMetricsAnalyzer:
             
             if self.metrics['signature_phrases']:
                 logger.info(f"   Sample phrases: {self.metrics['signature_phrases'][:5]}")
+    
+    def refresh_metrics(self):
+        """
+        Reload metrics from database (call after new document uploads).
+        Useful for updating brand metrics without restarting the application.
+        """
+        logger.info(f"Refreshing metrics for {self.business_id}/{self.content_type}")
+        self._load_metrics()
+        logger.info("Metrics refreshed successfully")
     
     def _consolidate_phrases(self, phrase_lists: List[List[str]]) -> List[str]:
         """
@@ -734,7 +769,7 @@ class BrandLearningMemory:
                     WHERE generation_id = %s
                 """, (human_approved, human_score, human_feedback, 
                       human_approved, generation_id))
-                logger.info(f"💾 Updated learning: {generation_id}")
+                logger.info(f"Updated learning: {generation_id}")
             else:
                 # Insert new record
                 agent_auto_approved = (auto_score >= 8.0)
@@ -757,7 +792,7 @@ class BrandLearningMemory:
                       generated_content, creative_angle, auto_score,
                       agent_auto_approved, has_human_feedback, human_approved,
                       human_score, human_feedback, agent_correct, features_used))
-                logger.info(f"💾 Saved new learning: {generation_id}")
+                logger.info(f"Saved new learning: {generation_id}")
             
             conn.commit()
             return True
@@ -953,7 +988,7 @@ class BrandLearningMemory:
             summary += "SUCCESSFUL APPROACHES (Human-Approved or High Auto-Score):\n"
             for i, pattern in enumerate(approved, 1):
                 score = pattern.get('human_score') or pattern.get('auto_score', 0)
-                approval_type = "👤 Human" if pattern.get('human_approved') else "Auto"
+                approval_type = "[Human]" if pattern.get('human_approved') else "[Auto]"
                 
                 summary += f"{i}. {approval_type} Score: {score:.1f}/10\n"
                 summary += f"   Creative angle: {pattern.get('creative_angle', 'N/A')}\n"
@@ -1226,7 +1261,7 @@ class BrandVoiceKnowledgeBase:
 
         with self._cache_lock:
             if cache_key in self._kb_cache:
-                logger.info(f"♻️  Using cached KB for {business_id}/{content_type}")
+                logger.info(f"Using cached KB for {business_id}/{content_type}")
                 return self._kb_cache[cache_key]
         
         lock = get_init_lock(f"{business_id}_{content_type}")
@@ -1240,7 +1275,7 @@ class BrandVoiceKnowledgeBase:
             try:
                 data_path = os.path.abspath(f"brand_{content_type}s/{business_id}")
                 
-                logger.info(f"🔨 Creating new KB for {business_id}/{content_type}")
+                logger.info(f"Creating new KB for {business_id}/{content_type}")
                 
                 rag_system = Marketing_Rag_System(
                     data_path=data_path,
@@ -1335,7 +1370,7 @@ class KBQueryTool(BaseTool):
     def _run(self, content_type: str, query: str) -> str:
         """Execute KB query with retry logic"""
         logger.info("="*80)
-        logger.info(f"🔍 KB QUERY - {content_type}: {query}")
+        logger.info(f"KB QUERY - {content_type}: {query}")
         logger.info("="*80)
         
         if not content_type or not query:
@@ -1440,7 +1475,7 @@ class LearningMemoryTool(BaseTool):
                         except:
                             data = {}
                     
-                    approval_type = "👤 Human" if p.get('human_approved') else "Auto"
+                    approval_type = "[Human]" if p.get('human_approved') else "[Auto]"
                     score = p.get('human_score') or p.get('auto_score', 0)
                     result += f"- {approval_type} | {data.get('creative_angle', 'N/A')} (Score: {score:.1f}/10)\n"
                 return result
@@ -1745,7 +1780,7 @@ def run_generation_with_learning(business_id: str, topic: str,
     # ============================================================================
     
     if not generated_content or len(generated_content.strip()) < 10:
-        logger.error("⚠️ Content is empty or too short after all extraction attempts!")
+        logger.error("WARNING: Content is empty or too short after all extraction attempts!")
         logger.error(f"   - Length: {len(generated_content) if generated_content else 0}")
         logger.error(f"   - Using full result as fallback ({len(result_str)} chars)")
         generated_content = result_str
@@ -1757,7 +1792,7 @@ def run_generation_with_learning(business_id: str, topic: str,
         logger.error(error_msg)
         raise ValueError(error_msg)
     
-    logger.info(f"✅ Final content validated: {final_content_length} chars")
+    logger.info(f"Final content validated: {final_content_length} chars")
     
     # ============================================================================
     # Save learning with retry
@@ -1774,7 +1809,7 @@ def run_generation_with_learning(business_id: str, topic: str,
             format_type=format_type,
             user_id=user_id
         )
-        logger.info(f"💾 Auto-saved learning for generation {generation_id}")
+        logger.info(f"Auto-saved learning for generation {generation_id}")
     except Exception as e:
         logger.error(f"Failed to auto-save learning: {e}", exc_info=True)
         # Don't crash - return result anyway
@@ -1793,7 +1828,7 @@ def run_generation_with_learning(business_id: str, topic: str,
         "full_result": result_str
     }
     
-    logger.info(f"🎉 Generation complete: {generation_id}")
+    logger.info(f"Generation complete: {generation_id}")
     logger.info(f"   - Content: {len(generated_content)} chars")
     logger.info(f"   - Score: {auto_score}/10")
     logger.info(f"   - Angle: {creative_angle}")

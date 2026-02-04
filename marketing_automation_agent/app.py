@@ -390,13 +390,24 @@ async def upload_documents(
                     filename = file.filename
                     filepath = os.path.join(target_folder, filename)
 
-                    # Save file
+                    # Save file to filesystem (optional, for backward compatibility)
                     with open(filepath, 'wb') as f:
                         f.write(content)
 
                     file_size = os.path.getsize(filepath)
+                    
+                    # Decode file content to text for database storage
+                    try:
+                        file_content_text = content.decode('utf-8')
+                    except UnicodeDecodeError:
+                        # Try other encodings if UTF-8 fails
+                        try:
+                            file_content_text = content.decode('latin-1')
+                        except Exception as e:
+                            logger.warning(f"Could not decode {filename}: {e}")
+                            file_content_text = None
 
-                    # Save to database
+                    # Save to database WITH content
                     doc = BrandDocument(
                         user_id=user.id,
                         business_id=business_id,
@@ -404,6 +415,7 @@ async def upload_documents(
                         content_type=content_type,
                         file_path=filepath,
                         file_size_bytes=file_size,
+                        file_content=file_content_text,  # Store content in DB
                         status='uploaded'
                     )
                     session.add(doc)
@@ -456,7 +468,7 @@ async def generate_content(request: Request, body: GenerateRequest):
         
         processing_time = round((time.time() - start_time) * 1000, 2)
         
-        logger.info(f"✅ Generation OK: {generation_id} ({content_length} chars, {processing_time}ms)")
+        logger.info(f"Generation OK: {generation_id} ({content_length} chars, {processing_time}ms)")
         
         return GenerateResponse(
             status="success",
