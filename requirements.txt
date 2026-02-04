@@ -15,8 +15,7 @@ python-multipart
 psycopg2-binary
 sqlalchemy
 pgvector
-crewai[tools]
-litellm[proxy]
+crewai[no-openai]
 #email-validator
 #apscheduler
 groq
@@ -27,6 +26,7 @@ ratelimit
 circuitbreaker
 structlog
 pydantic-settings
+
 
 
 
