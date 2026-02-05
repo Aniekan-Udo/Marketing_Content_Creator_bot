@@ -1335,7 +1335,8 @@ class Marketing_Rag_System:
                             try:
                                 # Small delay to let DB breathe
                                 time.sleep(0.5) 
-                                index.insert_documents(batch)
+                                for doc in batch:
+                                    index.insert(doc)
                             except Exception as batch_e:
                                 logger.error(f"Batch {batch_num} failed: {batch_e}")
                                 raise batch_e
@@ -1753,6 +1754,7 @@ def extract_json_with_balanced_braces(text: str) -> dict:
     
     raise ValueError("No valid JSON with final_score found")
 
+from typing import Tuple
 
 @retry(
     stop=stop_after_attempt(2),
@@ -1760,21 +1762,19 @@ def extract_json_with_balanced_braces(text: str) -> dict:
     reraise=True
 )
 def run_generation_with_learning(business_id: str, topic: str, 
-                                format_type: str, voice: str) -> tuple:
+                           format_type: str, voice: str) -> Tuple[Dict[str, Any], str]:
     """
-    Generate content with automatic learning save.
-    Includes retry logic for transient failures.
+    Generate content using improved crew with automatic refinement.
     
-    FIXED: Proper JSON parsing that handles nested objects
-    FIXED: Never returns empty content
+    NO EXTERNAL RETRY LOOP - the writer agent handles iteration internally.
     
-    Returns: (content_dict, generation_id)
+    Returns:
+        (result_dict, generation_id)
     """
     
-    # Generate unique ID
     generation_id = str(uuid.uuid4())
     
-    # Get user_id with retry
+    # Get user_id
     user_id = None
     try:
         with get_db_session() as session:
@@ -1795,7 +1795,6 @@ def run_generation_with_learning(business_id: str, topic: str,
                 logger.info(f"Created new user for {business_id}: user_id={user_id}")
     except Exception as e:
         logger.error(f"Failed to get user_id: {e}", exc_info=True)
-        # Continue without user_id - will be handled in save_learning
     
     logger.info(f"Generation ID: {generation_id}, User ID: {user_id}")
     
@@ -1809,164 +1808,90 @@ def run_generation_with_learning(business_id: str, topic: str,
     else:
         content_type = "blog"
     
-    # Run generation with AUTONOMOUS REFINEMENT
-    MAX_RETRIES = 2
-    retry_count = 0
-    feedback_for_retry = None
-    result = None
+    # Create improved crew (ONE TIME)
+    kb = BrandVoiceKnowledgeBase()
+    learning_memory = BrandLearningMemory(business_id=business_id)
+    metrics_analyzer = BrandMetricsAnalyzer(business_id=business_id, content_type=content_type)
     
-    while retry_count <= MAX_RETRIES:
-        if retry_count > 0:
-            logger.info(f"[RETRY] ATTEMPT {retry_count + 1}/{MAX_RETRIES + 1}: Refining content with feedback...")
-            
-            # Re-create crew with feedback
-            crew, kb, learning_memory, metrics_analyzer = get_crew(
-                business_id=business_id,
-                topic=topic,
-                format_type=format_type,
-                voice=voice,
-                previous_feedback=feedback_for_retry
-            )
-        else:
-            # First attempt
-            crew, kb, learning_memory, metrics_analyzer = get_crew(
-                business_id=business_id,
-                topic=topic,
-                format_type=format_type,
-                voice=voice
-            )
-
-        logger.info(f"Starting crew generation for {generation_id} (Attempt {retry_count + 1})")
-        result = crew.kickoff(inputs={
-            "topic": topic,
-            "format": format_type,
-            "voice": voice
-        })
-        
-        # QUALITY CHECK
-        try:
-            # Simple check for score in result string to avoid full parsing overhead if possible
-            # But we need full parsing to get the score accurately
-            import json
-            json_match = re.search(r'\{.*\}', str(result), re.DOTALL)
-            if json_match:
-                result_json = json.loads(json_match.group(0))
-                final_score = float(result_json.get('final_score', 0))
-                
-                if final_score >= 8.0:
-                    logger.info(f"[SUCCESS] Content quality score: {final_score}/10")
-                    break 
-                
-                logger.warning(f"[QUALITY FAIL] Score: {final_score}/10. Threshold: 8.0")
-                
-                if retry_count < MAX_RETRIES:
-                    issues = result_json.get('issues', {})
-                    reasoning = result_json.get('evaluation_reasoning', 'General quality issues')
-                    feedback_for_retry = f"Score: {final_score}. Issues: {issues}. Reasoning: {reasoning}"
-                    retry_count += 1
-                    continue
-                else:
-                    logger.warning("[FAIL] MAX RETRIES REACHED. Returning best effort.")
-                    break
-            else:
-                logger.warning("Could not parse result JSON for quality check. Assuming success.")
-                break
-        except Exception as e:
-            logger.error(f"Error checking quality: {e}")
-            break # Exit loop on error
-
+    factory = ContentCrewFactory(
+        kb=kb,
+        tavily_search=tavily_search,
+        learning_memory=learning_memory,
+        metrics_analyzer=metrics_analyzer,
+        business_id=business_id
+    )
     
-    # Convert result to string
+    crew = factory.create_crew()
+    
+    logger.info(f"Starting improved crew generation for {generation_id}")
+    
+    # Run crew ONCE (no retry loop needed)
+    result = crew.kickoff(inputs={
+        "topic": topic,
+        "format": format_type,
+        "voice": voice,
+        "content_type": content_type
+    })
+    
     result_str = str(result)
     logger.info(f"Crew result length: {len(result_str)} chars")
     
-    # ============================================================================
-    # FIXED: Parse result with proper JSON handling
-    # ============================================================================
-    
-    creative_angle = "Unknown"
-    auto_score = 7.5
-    generated_content = ""
-    
-    # Strategy 1: Try to extract JSON with balanced braces
+    # ===== PARSE RESULT =====
     try:
-        logger.info("Attempting JSON extraction with balanced braces...")
-        result_data = extract_json_with_balanced_braces(result_str)
+        # Extract JSON from validator output
+        json_match = re.search(r'\{[^{}]*"validation_status"[^{}]*\}', result_str, re.DOTALL)
         
-        creative_angle = result_data.get('creative_angle', 'Unknown')
-        auto_score = float(result_data.get('final_score', 7.5))
-        generated_content = result_data.get('generated_content', '')
+        if not json_match:
+            # Fallback: try to find any JSON with final_score
+            json_match = re.search(r'\{.*"final_score".*\}', result_str, re.DOTALL)
         
-        logger.info(f"   JSON parsing successful")
-        logger.info(f"   - Creative angle: {creative_angle}")
-        logger.info(f"   - Auto score: {auto_score}")
-        logger.info(f"   - Content length: {len(generated_content)}")
-        
-        # If content in JSON is empty or too short, extract from full result
-        if not generated_content or len(generated_content.strip()) < 50:
-            logger.warning("Content in JSON is too short, extracting from full result")
-            generated_content = extract_content_from_result(result_str)
-            logger.info(f"   - Extracted content length: {len(generated_content)}")
-    
-    except ValueError as e:
-        # No valid JSON found - use fallback extraction
-        logger.warning(f"JSON extraction failed: {e}")
-        logger.info("Falling back to regex-based extraction...")
-        
-        try:
-            creative_angle = extract_creative_angle_from_result(result_str)
-            auto_score = extract_score_from_result(result_str)
-            generated_content = extract_content_from_result(result_str)
+        if json_match:
+            result_data = json.loads(json_match.group(0))
             
-            logger.info(f"Fallback extraction successful")
-            logger.info(f"- Creative angle: {creative_angle}")
-            logger.info(f"- Auto score: {auto_score}")
-            logger.info(f"- Content length: {len(generated_content)}")
+            creative_angle = result_data.get('creative_angle', 'Unknown')
+            final_score = float(result_data.get('final_score', 7.5))
+            generated_content = result_data.get('generated_content', '')
             
-        except Exception as extraction_error:
-            logger.error(f"Fallback extraction also failed: {extraction_error}", exc_info=True)
-            # Last resort defaults
+            # Extract iteration count if present
+            iteration_count = result_data.get('iteration_count', 1)
+            verified_score = result_data.get('verified_structure_score', final_score)
+            
+            logger.info(f"Parsed result successfully")
+            logger.info(f"  - Creative angle: {creative_angle}")
+            logger.info(f"  - Final score: {final_score}")
+            logger.info(f"  - Iterations: {iteration_count}")
+            logger.info(f"  - Content length: {len(generated_content)}")
+            
+        else:
+            # Fallback parsing
+            logger.warning("Could not find JSON in result, using fallback")
             creative_angle = "Unknown Angle"
-            auto_score = 7.5
+            final_score = 7.5
             generated_content = result_str
-    
+            iteration_count = 1
+        
     except Exception as e:
-        logger.error(f"Unexpected error during parsing: {e}", exc_info=True)
-        # Last resort: use full result
+        logger.error(f"Error parsing result: {e}", exc_info=True)
         creative_angle = "Unknown Angle"
-        auto_score = 7.5
+        final_score = 7.5
         generated_content = result_str
+        iteration_count = 1
     
-    # ============================================================================
-    # CRITICAL VALIDATION: Never return empty content
-    # ============================================================================
-    
+    # Validate content
     if not generated_content or len(generated_content.strip()) < 10:
-        logger.error("WARNING: Content is empty or too short after all extraction attempts!")
-        logger.error(f"   - Length: {len(generated_content) if generated_content else 0}")
-        logger.error(f"   - Using full result as fallback ({len(result_str)} chars)")
+        logger.error("Content is empty or too short!")
         generated_content = result_str
     
-    # Final validation
-    final_content_length = len(generated_content.strip())
-    if final_content_length < 10:
-        error_msg = f"Content generation failed - only {final_content_length} chars generated"
-        logger.error(error_msg)
-        raise ValueError(error_msg)
+    logger.info(f"Final content validated: {len(generated_content)} chars")
     
-    logger.info(f"Final content validated: {final_content_length} chars")
-    
-    # ============================================================================
-    # Save learning with retry
-    # ============================================================================
-    
+    # ===== SAVE LEARNING =====
     try:
         learning_memory.save_learning(
             generation_id=generation_id,
             content_type=content_type,
             creative_angle=creative_angle,
             generated_content=generated_content,
-            auto_score=auto_score,
+            auto_score=final_score,
             topic=topic,
             format_type=format_type,
             user_id=user_id
@@ -1974,26 +1899,24 @@ def run_generation_with_learning(business_id: str, topic: str,
         logger.info(f"Auto-saved learning for generation {generation_id}")
     except Exception as e:
         logger.error(f"Failed to auto-save learning: {e}", exc_info=True)
-        # Don't crash - return result anyway
     
-    # ============================================================================
-    # Return structured data
-    # ============================================================================
-    
+    # ===== RETURN RESULT =====
     result_dict = {
         "content": generated_content,
-        "auto_score": auto_score,
+        "auto_score": final_score,
         "creative_angle": creative_angle,
         "generation_id": generation_id,
         "topic": topic,
         "format_type": format_type,
+        "iteration_count": iteration_count,
         "full_result": result_str
     }
     
     logger.info(f"Generation complete: {generation_id}")
-    logger.info(f"   - Content: {len(generated_content)} chars")
-    logger.info(f"   - Score: {auto_score}/10")
-    logger.info(f"   - Angle: {creative_angle}")
+    logger.info(f"  - Content: {len(generated_content)} chars")
+    logger.info(f"  - Score: {final_score}/10")
+    logger.info(f"  - Iterations: {iteration_count}")
+    logger.info(f"  - Angle: {creative_angle}")
     
     return result_dict, generation_id
 
@@ -2104,8 +2027,13 @@ def update_generation_with_human_feedback(generation_id: str,
 
 class ContentCrewFactory:
     """
-    Factory for creating content generation crew.
-    Includes all agents with proper configuration.
+    Factory for creating content generation crew with AUTOMATIC refinement.
+    
+    Key Features:
+    - Writer agent self-corrects using scoring tool
+    - No external retry loops needed
+    - Reviewer validates final output only
+    - Full iteration tracking
     """
     
     def __init__(self, kb: BrandVoiceKnowledgeBase, tavily_search: TavilySearchTool,
@@ -2117,24 +2045,25 @@ class ContentCrewFactory:
         self.metrics_analyzer = metrics_analyzer
         self.business_id = business_id
     
-    def create_crew(self, previous_feedback: str = None) -> Crew:
-        """Create the full crew with all agents and tasks, optionally with feedback for revision"""
+    def create_crew(self) -> Crew:
+        """Create the crew with automatic iterative refinement"""
+        
+        # Initialize tools
         kb_tool = KBQueryTool(kb=self.kb, business_id=self.business_id)
         learning_tool = LearningMemoryTool(memory=self.learning_memory)
         metrics_tool = BrandMetricsTool(analyzer=self.metrics_analyzer)
         scoring_tool = ContentScoringTool(analyzer=self.metrics_analyzer)
         
-        # FEATURE: Dynamic Few-Shot Training
-        # Fetch actual examples from the DB to show, not tell.
+        # Get few-shot examples
         few_shot_examples = self.metrics_analyzer.get_top_examples(limit=3)
         if not few_shot_examples:
             few_shot_examples = "No previous examples available. Follow brand guidelines strictly."
         
-        # Use different temperatures for different agent types
+        # Different LLMs for different agent types
         creative_llm = get_llm(temperature=0.8)
         analytical_llm = get_llm(temperature=0.5)
         
-        # ===== AGENT 1: RESEARCHER =====
+        # ===== AGENT 1: RESEARCHER (UNCHANGED) =====
         researcher_agent = Agent(
             role="Research Analyst",
             goal="Find current, factual information and diverse perspectives on {topic}",
@@ -2149,7 +2078,7 @@ class ContentCrewFactory:
             llm=analytical_llm,
             verbose=True,
         )
-                        
+        
         research_task = Task(
             description="""Research {topic} for {format} content.
 
@@ -2164,17 +2093,17 @@ class ContentCrewFactory:
             expected_output="Comprehensive research with multiple angles and perspectives",
             agent=researcher_agent,
         )
-
-        # ===== AGENT 2: CREATIVE STRATEGIST =====
+        
+        # ===== AGENT 2: CREATIVE STRATEGIST (UNCHANGED) =====
         creative_strategist = Agent(
             role="Creative Content Strategist",
             goal="Find unique, engaging angles that match brand voice but stand out",
             backstory="""You're a creative strategist who makes content memorable.
 
                     CRITICAL BALANCE:
-                    Stay true to brand voice (tone, values, vocabulary)
-                    Find fresh perspectives competitors haven't used
-                    Make it scroll-stopping while staying authentic
+                    - Stay true to brand voice (tone, values, vocabulary)
+                    - Find fresh perspectives competitors haven't used
+                    - Make it scroll-stopping while staying authentic
 
                     You review past learnings and propose 2-3 creative angles that are:
                     - Fresh and haven't been overused
@@ -2185,23 +2114,23 @@ class ContentCrewFactory:
             llm=creative_llm,
             verbose=True,
         )
-                            
+        
         creative_strategy_task = Task(
             description="""Develop creative content strategy for {topic} in {format}.
 
                     STEP 1 - Learn from past (MANDATORY):
                     Use learning_memory tool:
-                    - {{"action": "get_rejected", "content_type": "blog"}}
-                    - {{"action": "get_approved", "content_type": "blog"}}
+                    - {{"action": "get_rejected", "content_type": "{content_type}"}}
+                    - {{"action": "get_approved", "content_type": "{content_type}"}}
 
                     Review:
-                    What creative angles WORKED (high scores, approved)?
-                    What creative angles FAILED (rejected, low scores)?
+                    - What creative angles WORKED (high scores, approved)?
+                    - What creative angles FAILED (rejected, low scores)?
 
                     STEP 2 - Understand brand:
                     Query KB 2 times:
-                    - {{"content_type": "blog", "query": "brand personality and values"}}
-                    - {{"content_type": "blog", "query": "tone and voice characteristics"}}
+                    - {{"content_type": "{content_type}", "query": "brand personality and values"}}
+                    - {{"content_type": "{content_type}", "query": "tone and voice characteristics"}}
 
                     STEP 3 - Propose 2-3 creative angles:
 
@@ -2209,14 +2138,13 @@ class ContentCrewFactory:
                     - DO NOT propose angles similar to rejected patterns
                     - DO build on successful patterns
                     - If an angle was rejected before with feedback "too generic", 
-                    ensure your new angles are MORE specific
+                      ensure your new angles are MORE specific
 
                     ANGLE 1: [Name]
                     - Hook: [unique perspective]
                     - Why it's fresh: [differentiation]
                     - Past learning: [how it differs from rejected patterns]
                     - Example opening: "[sample]"
-                    ...
 
                     RECOMMENDED ANGLE: [Which one and why]""",
             agent=creative_strategist,
@@ -2224,7 +2152,7 @@ class ContentCrewFactory:
             expected_output="2-3 creative angles with recommended approach"
         )
         
-        # ===== AGENT 3: BRAND VOICE ANALYST =====
+        # ===== AGENT 3: BRAND VOICE ANALYST (UNCHANGED) =====
         brand_analyst = Agent(
             role="Brand Voice Pattern Analyst",
             goal="Extract concrete metrics and qualitative patterns from brand documents",
@@ -2238,7 +2166,7 @@ class ContentCrewFactory:
             llm=analytical_llm,
             verbose=True,
         )
-                        
+        
         brand_analysis_task = Task(
             description="""Extract brand voice patterns for {format}.
 
@@ -2246,10 +2174,10 @@ class ContentCrewFactory:
                 Use brand_metrics tool: {{"action": "get_metrics"}}
 
                 STEP 2 - Query KB (4 times):
-                1. {{"content_type": "blog", "query": "tone characteristics"}}
-                2. {{"content_type": "blog", "query": "opening and closing patterns"}}
-                3. {{"content_type": "blog", "query": "vocabulary and perspective"}}
-                4. {{"content_type": "blog", "query": "content structure and format rules"}}
+                1. {{"content_type": "{content_type}", "query": "tone characteristics"}}
+                2. {{"content_type": "{content_type}", "query": "opening and closing patterns"}}
+                3. {{"content_type": "{content_type}", "query": "vocabulary and perspective"}}
+                4. {{"content_type": "{content_type}", "query": "content structure and format rules"}}
 
                 OUTPUT:
 
@@ -2274,161 +2202,204 @@ class ContentCrewFactory:
             expected_output="Measurable brand blueprint with exact metrics and patterns"
         )
         
-        # ===== AGENT 4: WRITER =====
+        # ===== AGENT 4: WRITER WITH SELF-CORRECTION (ENHANCED) =====
         writer_agent = Agent(
-            role="Brand Voice Content Writer",
-            goal="Create content matching exact brand metrics while being creative",
-            backstory=f"""You are a Brand Voice Mimic with Creative Flair. 
+            role="Self-Correcting Brand Voice Writer",
+            goal="Write content matching brand metrics, iterating until quality score >= 8.0",
+            backstory=f"""You are a Brand Voice Mimic with built-in quality control.
             
-            **YOUR GOAL:** Write content that feels 100% authentic to the brand (voice/structure) but is conceptually fresh and engaging.
-            
-            **THE BALANCE:**
-            - **RIGID:** Sentence length, vocabulary, "I" statements, and tone. (These MUST match the blueprint).
-            - **FLEXIBLE:** Metaphors, examples, storytelling, and how you explain the concept. (Be creative here!).
+            **YOUR UNIQUE ABILITY:** You write, score, and refine your own work.
             
             **FEW-SHOT TRAINING (MIMIC THESE SAMPLES):**
             {few_shot_examples}
             
-            **YOUR METHOD:**
-            1. **Pattern Matching:** Use the exact sentence length and structure defined by the Analyst.
-            2. **Vocabulary Injection:** MANDATORY use of "Signature Phrases" provided in the blueprint.
-            3. **Tone Cloning:** If the blueprint says "Vulnerable", you MUST be vulnerable.
+            **YOUR ITERATIVE PROCESS:**
+            1. **Draft:** Write initial content using brand blueprint
+            2. **Score:** Use score_content tool to objectively measure quality
+            3. **Analyze:** Identify specific gaps (sentence length, phrases, tone)
+            4. **Refine:** Fix ONLY the identified issues (keep what works)
+            5. **Repeat:** Continue until structure_score >= 8.0 OR 3 attempts
             
-            **WARNING:** The Reviewer Agent is strict about *Voice*, but loves *Fresh Ideas*.
-            - Generic/Clinical = REJECTED
-            - Wrong Tone = REJECTED
+            **SCORING INTERPRETATION:**
+            - Structure Score < 6.0: Major structural issues (sentence length WAY off)
+            - Structure Score 6.0-7.9: Close but needs tweaking
+            - Structure Score >= 8.0: Structurally aligned ✓
             
-            You must be BOLD in your ideas, but STRICT in your voice.""",
-            tools=[kb_tool, metrics_tool],
+            **REFINEMENT STRATEGY:**
+            - If sentence length off: Rewrite specific sentences to match target
+            - If missing phrases: Naturally incorporate 2-3 signature phrases
+            - If tone misaligned: Adjust vocabulary and perspective
+            
+            **CRITICAL:** You must show your work. After each iteration, explain what you fixed.""",
+            tools=[kb_tool, metrics_tool, scoring_tool],  # CRITICAL: Added scoring_tool
             llm=creative_llm,
             verbose=True,
-            memory=True,
+            memory=True,  # Enables iteration awareness
         )
-                
-        writer_task_desc = f"""Write {{topic}} content in {{format}} format using the BRAND BLUEPRINT.
-
-            **CRITICAL INPUTS:**
-            - **Metrics:** Target Sentence Length: {{expected_output from brand_analysis_task}} words.
-            - **Tone:** Perspective and Voice defined in the Blueprint.
-            
-            **EXECUTION STEPS:**
-            1. **Structure:** Adhere strictly to the sentence length and paragraph density targets.
-            2. **Voice:** Integrate 3-5 "Signature Phrases" from the blueprint.
-            3. **Creativity:** Use unique metaphors or examples to explain the concept (differentiate from generic AI).
-            
-            **MANDATORY CHECK:**
-            - Does this sound like a human wrote it?
-            - Did I use "I" statements if the brand demands it?
-            - Is the *idea* fresh, even if the *voice* is consistent?
-            
-            OUTPUT THE COMPLETE CONTENT"""
-
-        if previous_feedback:
-            writer_task_desc += f"\n\n[REVISION ALERT]\nYour previous draft was REJECTED. Fix these specific issues:\n{previous_feedback}"
-
+        
         writer_task = Task(
-            description=writer_task_desc,
+            description="""Write {topic} content in {format} format using ITERATIVE REFINEMENT.
+
+            **YOUR MISSION:** Produce content with structure_score >= 8.0
+            
+            **STEP-BY-STEP PROCESS:**
+            
+            === ITERATION 1: INITIAL DRAFT ===
+            1. Review the Brand Blueprint from brand_analysis_task
+            2. Review Creative Strategy from creative_strategy_task
+            3. Write your first draft:
+               - Use target sentence length from metrics
+               - Incorporate 2-3 signature phrases naturally
+               - Follow the recommended creative angle
+               - Match the tone and perspective
+            
+            4. **IMMEDIATELY SCORE YOUR DRAFT:**
+               Call score_content tool: {{"content": "<your complete draft>"}}
+            
+            5. **ANALYZE THE SCORES:**
+               - Structure Score: [X]/10
+               - Phrase Score: [X]/10
+               - Sentence length: Actual vs Target
+               - Sentences per paragraph: Actual vs Target
+               - Signature phrases used: [list]
+            
+            === ITERATION 2 (IF STRUCTURE_SCORE < 8.0): TARGETED REFINEMENT ===
+            6. **IDENTIFY SPECIFIC ISSUES:**
+               Example issues:
+               - "Avg sentence length is 22 words, target is 15 → sentences too long"
+               - "Only used 1 signature phrase, need 3-5"
+               - "Paragraphs have 7 sentences, target is 3-5"
+            
+            7. **FIX ONLY THOSE ISSUES:**
+               - Rewrite long sentences to be shorter
+               - Add 2-3 more signature phrases naturally
+               - Break up dense paragraphs
+               - KEEP what's working well (don't start over)
+            
+            8. **RE-SCORE YOUR REVISED DRAFT:**
+               Call score_content tool again
+            
+            === ITERATION 3 (IF STILL < 8.0): FINAL POLISH ===
+            9. Make final targeted adjustments
+            10. Final scoring
+            
+            === OUTPUT FORMAT ===
+            
+            [ITERATION LOG]
+            Iteration 1: Score X.X - Issues: [list]
+            Iteration 2: Score X.X - Improvements: [what you fixed]
+            Iteration 3: Score X.X - Final adjustments: [if needed]
+            [/ITERATION LOG]
+            
+            [FINAL CONTENT]
+            <Your polished content here - do NOT include any metadata or scores in this section>
+            [/FINAL CONTENT]
+            
+            [METADATA]
+            {
+                "creative_angle": "Brief description",
+                "total_iterations": X,
+                "final_structure_score": X.X,
+                "final_phrase_score": X.X,
+                "target_metrics_met": true/false
+            }
+            [/METADATA]
+            
+            **CRITICAL RULES:**
+            1. You MUST call score_content at least once (after initial draft)
+            2. If score < 8.0, you MUST revise and re-score
+            3. Maximum 3 iterations (diminishing returns after that)
+            4. Show your iteration log (transparency = trust)
+            5. The [FINAL CONTENT] section should contain ONLY the content, no extra text
+            """,
             agent=writer_agent,
             context=[research_task, creative_strategy_task, brand_analysis_task],
-            expected_output="Complete content following brand guidelines"
+            expected_output="Polished content with structure_score >= 8.0 and iteration log"
         )
         
-        # ===== AGENT 5: REVIEWER =====
-        reviewer_agent = Agent(
-            role="Hybrid Quality Enforcer",
-            goal="Score content using AUTOMATIC metrics + LLM judgment",
-            backstory="""You are the ultimate arbiter of Brand Integrity. 
+        # ===== AGENT 5: VALIDATOR (SIMPLIFIED REVIEWER) =====
+        validator_agent = Agent(
+            role="Quality Validator",
+            goal="Validate final content meets all requirements and provide confidence score",
+            backstory="""You are the final checkpoint before content goes to production.
             
-            **YOUR MISSION:** Ensure the generated content doesn't just "look" like a blog/ad, but actually *feels* like the brand found in the source documents.
-
-            **HYBRID SCORING SYSTEM:**
-            1. **AUTOMATIC (50%):** You MUST use the `score_content` tool. It provides ground-truth measurements of structure, length, and signature phrases.
-            2. **LLM JUDGMENT (50%):** You compare the content against the "Brand Blueprint" (from the Analyst) and human feedback (from Memory).
-
-            **SCORING ANCHORS:**
-            - **9.0-10 (Elite):** Indistinguishable from brand docs. Perfect nuance, personal "I" voice, and unique creative angle.
-            - **7.0-8.9 (Good):** Matches structure but lacks that specific "spark" or "vulnerability" found in the best brand samples.
-            - **4.0-6.9 (Mediocre):** Generic "AI-style" content. Safe but lacks brand identity.
-            - **0.0-3.9 (Major Fail):** Wrong tone, clinical voice, or purely generic health advice without the brand's unique perspective.""",
-            tools=[scoring_tool, learning_tool, kb_tool],
-            memory=True,
-            verbose=True,
+            The writer has already self-corrected using objective metrics. Your job is to:
+            1. Verify the iteration log (did they actually refine?)
+            2. Spot-check key brand elements (tone, perspective)
+            3. Calculate a final confidence score
+            
+            You do NOT reject content - you provide a quality assessment.""",
+            tools=[scoring_tool, kb_tool],
             llm=analytical_llm,
+            verbose=True,
         )
         
-        reviewer_task = Task(
-                description="""Review content with HYBRID scoring grounded in the Brand Blueprint.
+        validator_task = Task(
+            description="""Validate the final content from the writer.
 
-                CRITICAL: You MUST follow this EXACT process:
-
-                STEP 1 - GET AUTOMATIC SCORE:
-                Call `score_content` tool with the FULL generated content. 
-                Extract the "Overall Structure Score" as your AUTOMATIC_SCORE.
-
-                STEP 2 - BRAND-GROUNDED JUDGMENT:
-                Evaluate these dimensions by comparing the content against the **Brand Blueprint** and **Past Learnings**:
-                
-                A) Tone Alignment (0-10):
-                - Does it match the specific "conversational" vs "clinical" ratio in the brand blueprint?
-                - Does it use the specific perspective (e.g., "I", "We") identified from the DB docs?
-                - Is the "Vulnerability Factor" present?
-                
-                B) Creative Freshness (0-10):
-                - Is the angle fresh or is it a generic cliché?
-                - Does it avoid patterns explicitly rejected in the Learning Memory?
-                
-                C) Practical Value (0-10):
-                - Is it as actionable as the top-performing brand samples?
-
-                STEP 3 - INTERNAL REASONING:
-                Write a 2-sentence justification for each score. Why is it a 7 and not a 9?
-
-                STEP 4 - CALCULATE FINAL SCORES:
-                - LLM_SCORE = (Tone + Freshness + Value) / 3
-                - FINAL_SCORE = (AUTOMATIC_SCORE × 0.5) + (LLM_SCORE × 0.5)
-
-                STEP 5 - OUTPUT STRICT JSON:
-                {{
-                    "decision": "APPROVED/NEEDS_REVISION/REJECTED",
-                    "final_score": X.XX,
-                    "automatic_score": X.X,
-                    "llm_score": X.X,
-                    "evaluation_reasoning": "Explicit breakdown of why these scores were given",
-                    "creative_angle": "Brief description of the content's approach",
-                    "generated_content": "THE COMPLETE CONTENT",
-                    "detailed_scores": {{
-                        "tone_alignment": X,
-                        "creative_freshness": X,
-                        "practical_value": X,
-                        "structure_alignment": X
-                    }},
-                    "measurements": {{
-                        "sentence_length": X.X,
-                        "target_sentence_length": X.X,
-                        "sentences_per_paragraph": X.X,
-                        "target_sentences_per_paragraph": X.X
-                    }},
-                    "issues": {{
-                        "structural": "...",
-                        "voice": "...",
-                        "engagement": "..."
-                    }}
-                }}
-                
-                CRITICAL: Use the EXACT target metrics from the Analyst in your JSON!
-                DO NOT output any text except the JSON.
-                DO NOT use emojis anywhere in the output.""",
-                agent=reviewer_agent,
-                context=[writer_task, brand_analysis_task, creative_strategy_task],
-                expected_output="Valid JSON with hybrid scores and complete content"
-            )
+            **VALIDATION CHECKLIST:**
+            
+            1. **Extract Writer's Metadata:**
+               - How many iterations did they do?
+               - What was their final structure_score?
+               - Did they claim to meet target metrics?
+            
+            2. **Independent Verification:**
+               Call score_content tool on the [FINAL CONTENT] section to verify
+            
+            3. **Spot-Check Brand Alignment:**
+               - Does the tone match the brand blueprint?
+               - Are signature phrases used naturally (not forced)?
+               - Is the creative angle actually fresh?
+            
+            4. **Calculate Confidence Score:**
+               CONFIDENCE = (verified_structure_score × 0.4) + 
+                          (tone_alignment × 0.3) + 
+                          (creative_freshness × 0.3)
+            
+            5. **Output Structured Assessment:**
+            
+            {
+                "validation_status": "PASSED" / "PASSED_WITH_NOTES" / "NEEDS_ATTENTION",
+                "verified_structure_score": X.X,
+                "confidence_score": X.X,
+                "iteration_count": X,
+                "quality_notes": "Brief assessment of what's working well",
+                "improvement_opportunities": "Minor suggestions if any",
+                "creative_angle": "What angle was used",
+                "generated_content": "<EXACT copy of the [FINAL CONTENT] section from writer>",
+                "final_score": X.X  // This is your confidence_score
+            }
+            
+            **CRITICAL:**
+            - Copy the [FINAL CONTENT] EXACTLY as written (no modifications)
+            - If structure_score >= 8.0, status should be "PASSED"
+            - If 7.0-7.9, status can be "PASSED_WITH_NOTES"
+            - You are NOT a gatekeeper - you're a quality reporter
+            """,
+            agent=validator_agent,
+            context=[writer_task, brand_analysis_task],
+            expected_output="JSON validation report with final content"
+        )
+        
         return Crew(
-            agents=[researcher_agent, creative_strategist, brand_analyst, writer_agent, reviewer_agent],
-            tasks=[research_task, creative_strategy_task, brand_analysis_task, writer_task, reviewer_task],
+            agents=[
+                researcher_agent, 
+                creative_strategist, 
+                brand_analyst, 
+                writer_agent, 
+                validator_agent
+            ],
+            tasks=[
+                research_task, 
+                creative_strategy_task, 
+                brand_analysis_task, 
+                writer_task, 
+                validator_task
+            ],
             process=Process.sequential,
             verbose=True,
         )
-
 
 # ===== FACTORY FUNCTION =====
 

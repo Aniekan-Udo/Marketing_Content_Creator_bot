@@ -1,30 +1,47 @@
 
-import sys
 import os
+import sys
 
-# Mask environment variables to avoid real connections if possible, 
-# although deployer.py validates them at import time usually.
-# However, deployer.py has robust error handling so it might import fine.
-# We just want to check signature.
+# Add current directory to path so we can import deployer
+sys.path.append(os.getcwd())
 
-try:
-    from deployer import get_crew
-    print("Successfully imported get_crew")
-except Exception as e:
-    print(f"Failed to import: {e}")
-    # continue anyway in case it works partially
+# Mock environment variables needed for imports
+os.environ["POSTGRES_URI"] = "postgres://user:pass@localhost:5432/db"
+os.environ["POSTGRES_ASYNC_URI"] = "postgresql+asyncpg://user:pass@localhost:5432/db"
+os.environ["GROQ_API_KEY"] = "mock_key"
+os.environ["TAVILY_API_KEY"] = "mock_key"
 
-try:
-    # We don't expect it to actually RUN successfully because of missing keys/db,
-    # but we want to see if it accepts the argument.
-    # It will likely fail inside factory.create_crew or earlier, but NOT with TypeError on get_crew
-    get_crew(previous_feedback="test feedback")
-    print("Call to get_crew(previous_feedback='...') succeeded (unexpectedly ran fully?)")
-except TypeError as Te:
-    if "unexpected keyword argument 'previous_feedback'" in str(Te):
-        print("FAIL: TypeError still present!")
+def verify_fix():
+    print("Verifying fix for hardcoded content_type...")
+    
+    with open("deployer.py", "r") as f:
+        content = f.read()
+    
+    # Check 1: Check inputs in crew.kickoff
+    if '"content_type": content_type' in content and 'result = crew.kickoff(inputs={' in content:
+        print("PASS: 'content_type' variable added to crew inputs.")
     else:
-        print(f"TypeError occurred but likely unrelated to argument: {Te}")
-except Exception as e:
-    print(f"Caught expected exception during execution (not TypeError on signature): {type(e).__name__}: {e}")
-    print("PASS: Signature accepted 'previous_feedback'")
+        print("FAIL: 'content_type' variable NOT found in crew inputs.")
+
+    # Check 2: Check creative_strategy_task prompt
+    if 'content_type": "{content_type}"' in content:
+        print("PASS: Dynamic '{content_type}' found in task prompts.")
+    else:
+        print("FAIL: Dynamic '{content_type}' NOT found in task prompts (or fewer occurrences than expected).")
+        
+    # Check 3: Ensure "blog" hardcodes are gone from key areas
+    # We look for the specific lines we changed
+    if 'content_type": "blog"' in content:
+        # We need to be careful, "blog" might still exist as a fallback or in other valid places
+        # Let's check the specific lines we aimed to change by looking for adjacent context
+        if 'Use learning_memory tool:\n                    - {{"action": "get_rejected", "content_type": "blog"}}' in content:
+             print("FAIL: Hardcoded 'blog' still found in creative_strategy_task.")
+        elif '1. {{"content_type": "blog", "query": "tone characteristics"}}' in content:
+             print("FAIL: Hardcoded 'blog' still found in brand_analysis_task.")
+        else:
+             print("PASS: Hardcoded 'blog' removed from target task prompts.")
+    else:
+        print("PASS: Hardcoded 'blog' removed from target task prompts.")
+
+if __name__ == "__main__":
+    verify_fix()
