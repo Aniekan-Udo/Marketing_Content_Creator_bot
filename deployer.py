@@ -679,6 +679,31 @@ class BrandMetricsAnalyzer:
             }
         }
 
+    def get_top_examples(self, limit: int = 3) -> str:
+        """
+        Fetch top 3 raw content examples from the database to use as Few-Shot Training.
+        Returns a formatted string of examples.
+        """
+        try:
+            with get_db_session() as session:
+                from db import BrandDocument
+                # Naive selection: Get longest documents as they likely contain more 'voice'
+                # Filter for non-empty content
+                docs = session.query(BrandDocument.file_content).filter(
+                    BrandDocument.business_id == self.business_id,
+                    BrandDocument.content_type == self.content_type,
+                    BrandDocument.file_content.isnot(None)
+                ).limit(limit).all()
+                
+                if not docs:
+                    return ""
+
+                examples_str = "\n\n".join([f"--- EXAMPLE {i+1} ---\n{doc.file_content[:1500]}..." for i, doc in enumerate(docs) if doc.file_content])
+                return examples_str
+        except Exception as e:
+            logger.warning(f"Failed to fetch top examples: {e}")
+            return ""
+
 # ===== BRAND LEARNING MEMORY (PRODUCTION-READY) =====
 
 class BrandLearningMemory:
@@ -1757,21 +1782,72 @@ def run_generation_with_learning(business_id: str, topic: str,
     else:
         content_type = "blog"
     
-    # Create crew
-    crew, kb, learning_memory, metrics_analyzer = get_crew(
-        business_id=business_id,
-        topic=topic,
-        format_type=format_type,
-        voice=voice
-    )
+    # Run generation with AUTONOMOUS REFINEMENT
+    MAX_RETRIES = 2
+    retry_count = 0
+    feedback_for_retry = None
+    result = None
     
-    # Run generation
-    logger.info(f"Starting crew generation for {generation_id}")
-    result = crew.kickoff(inputs={
-        "topic": topic,
-        "format": format_type,
-        "voice": voice
-    })
+    while retry_count <= MAX_RETRIES:
+        if retry_count > 0:
+            logger.info(f"[RETRY] ATTEMPT {retry_count + 1}/{MAX_RETRIES + 1}: Refining content with feedback...")
+            
+            # Re-create crew with feedback
+            crew, kb, learning_memory, metrics_analyzer = get_crew(
+                business_id=business_id,
+                topic=topic,
+                format_type=format_type,
+                voice=voice,
+                previous_feedback=feedback_for_retry
+            )
+        else:
+            # First attempt
+            crew, kb, learning_memory, metrics_analyzer = get_crew(
+                business_id=business_id,
+                topic=topic,
+                format_type=format_type,
+                voice=voice
+            )
+
+        logger.info(f"Starting crew generation for {generation_id} (Attempt {retry_count + 1})")
+        result = crew.kickoff(inputs={
+            "topic": topic,
+            "format": format_type,
+            "voice": voice
+        })
+        
+        # QUALITY CHECK
+        try:
+            # Simple check for score in result string to avoid full parsing overhead if possible
+            # But we need full parsing to get the score accurately
+            import json
+            json_match = re.search(r'\{.*\}', str(result), re.DOTALL)
+            if json_match:
+                result_json = json.loads(json_match.group(0))
+                final_score = float(result_json.get('final_score', 0))
+                
+                if final_score >= 8.0:
+                    logger.info(f"[SUCCESS] Content quality score: {final_score}/10")
+                    break 
+                
+                logger.warning(f"[QUALITY FAIL] Score: {final_score}/10. Threshold: 8.0")
+                
+                if retry_count < MAX_RETRIES:
+                    issues = result_json.get('issues', {})
+                    reasoning = result_json.get('evaluation_reasoning', 'General quality issues')
+                    feedback_for_retry = f"Score: {final_score}. Issues: {issues}. Reasoning: {reasoning}"
+                    retry_count += 1
+                    continue
+                else:
+                    logger.warning("[FAIL] MAX RETRIES REACHED. Returning best effort.")
+                    break
+            else:
+                logger.warning("Could not parse result JSON for quality check. Assuming success.")
+                break
+        except Exception as e:
+            logger.error(f"Error checking quality: {e}")
+            break # Exit loop on error
+
     
     # Convert result to string
     result_str = str(result)
@@ -2014,12 +2090,18 @@ class ContentCrewFactory:
         self.metrics_analyzer = metrics_analyzer
         self.business_id = business_id
     
-    def create_crew(self) -> Crew:
-        """Create the full crew with all agents and tasks"""
+    def create_crew(self, previous_feedback: str = None) -> Crew:
+        """Create the full crew with all agents and tasks, optionally with feedback for revision"""
         kb_tool = KBQueryTool(kb=self.kb, business_id=self.business_id)
         learning_tool = LearningMemoryTool(memory=self.learning_memory)
         metrics_tool = BrandMetricsTool(analyzer=self.metrics_analyzer)
         scoring_tool = ContentScoringTool(analyzer=self.metrics_analyzer)
+        
+        # FEATURE: Dynamic Few-Shot Training
+        # Fetch actual examples from the DB to show, not tell.
+        few_shot_examples = self.metrics_analyzer.get_top_examples(limit=3)
+        if not few_shot_examples:
+            few_shot_examples = "No previous examples available. Follow brand guidelines strictly."
         
         # Use different temperatures for different agent types
         creative_llm = get_llm(temperature=0.8)
@@ -2169,31 +2251,57 @@ class ContentCrewFactory:
         writer_agent = Agent(
             role="Brand Voice Content Writer",
             goal="Create content matching exact brand metrics while being creative",
-            backstory="""You balance:
-                1. CREATIVE ANGLE: Fresh, engaging perspective
-                2. STRUCTURAL METRICS: Exact sentence/paragraph targets
-                3. BRAND VOICE: Tone, vocabulary, phrases
-
-                You write with precision, counting sentences and using metrics as guardrails.""",
+            backstory=f"""You are a Brand Voice Mimic with Creative Flair. 
+            
+            **YOUR GOAL:** Write content that feels 100% authentic to the brand (voice/structure) but is conceptually fresh and engaging.
+            
+            **THE BALANCE:**
+            - **RIGID:** Sentence length, vocabulary, "I" statements, and tone. (These MUST match the blueprint).
+            - **FLEXIBLE:** Metaphors, examples, storytelling, and how you explain the concept. (Be creative here!).
+            
+            **FEW-SHOT TRAINING (MIMIC THESE SAMPLES):**
+            {few_shot_examples}
+            
+            **YOUR METHOD:**
+            1. **Pattern Matching:** Use the exact sentence length and structure defined by the Analyst.
+            2. **Vocabulary Injection:** MANDATORY use of "Signature Phrases" provided in the blueprint.
+            3. **Tone Cloning:** If the blueprint says "Vulnerable", you MUST be vulnerable.
+            
+            **WARNING:** The Reviewer Agent is strict about *Voice*, but loves *Fresh Ideas*.
+            - Generic/Clinical = REJECTED
+            - Wrong Tone = REJECTED
+            
+            You must be BOLD in your ideas, but STRICT in your voice.""",
             tools=[kb_tool, metrics_tool],
             llm=creative_llm,
             verbose=True,
             memory=True,
         )
                 
+        writer_task_desc = f"""Write {{topic}} content in {{format}} format using the BRAND BLUEPRINT.
+
+            **CRITICAL INPUTS:**
+            - **Metrics:** Target Sentence Length: {{expected_output from brand_analysis_task}} words.
+            - **Tone:** Perspective and Voice defined in the Blueprint.
+            
+            **EXECUTION STEPS:**
+            1. **Structure:** Adhere strictly to the sentence length and paragraph density targets.
+            2. **Voice:** Integrate 3-5 "Signature Phrases" from the blueprint.
+            3. **Creativity:** Use unique metaphors or examples to explain the concept (differentiate from generic AI).
+            
+            **MANDATORY CHECK:**
+            - Does this sound like a human wrote it?
+            - Did I use "I" statements if the brand demands it?
+            - Is the *idea* fresh, even if the *voice* is consistent?
+            
+            OUTPUT THE COMPLETE CONTENT"""
+
+        if previous_feedback:
+            # Clean text-only alert - NO EMOJIS
+            writer_task_desc += f"\n\n[REVISION ALERT]\nYour previous draft was REJECTED. Fix these specific issues:\n{previous_feedback}"
+
         writer_task = Task(
-            description="""Write {topic} content in {format} format.
-
-            CRITICAL - PAST FAILURES TO AVOID:
-            Before writing, review the creative strategy validation.
-            If any patterns were flagged as "too similar to rejected", 
-            ACTIVELY DIFFERENTIATE by:
-            - Using different vocabulary
-            - Taking a contrarian angle
-            - Adding unexpected examples
-            - Changing the narrative structure
-
-            OUTPUT THE COMPLETE CONTENT""",
+            description=writer_task_desc,
             agent=writer_agent,
             context=[research_task, creative_strategy_task, brand_analysis_task],
             expected_output="Complete content following brand guidelines"
@@ -2203,18 +2311,19 @@ class ContentCrewFactory:
         reviewer_agent = Agent(
             role="Hybrid Quality Enforcer",
             goal="Score content using AUTOMATIC metrics + LLM judgment",
-            backstory="""You use a HYBRID system:
+            backstory="""You are the ultimate arbiter of Brand Integrity. 
+            
+            **YOUR MISSION:** Ensure the generated content doesn't just "look" like a blog/ad, but actually *feels* like the brand found in the source documents.
 
-            **AUTOMATIC (50%):** Use score_content tool - measures structure objectively
-            **LLM JUDGMENT (50%):** You evaluate tone, creativity, engagement
+            **HYBRID SCORING SYSTEM:**
+            1. **AUTOMATIC (50%):** You MUST use the `score_content` tool. It provides ground-truth measurements of structure, length, and signature phrases.
+            2. **LLM JUDGMENT (50%):** You compare the content against the "Brand Blueprint" (from the Analyst) and human feedback (from Memory).
 
-            CRITICAL: You MUST use the score_content tool. Don't guess at measurements.
-
-            Scoring:
-            - 9.0-10: Excellent
-            - 8.0-8.9: Good
-            - 7.0-7.9: Needs revision
-            - <7.0: Major issues""",
+            **SCORING ANCHORS:**
+            - **9.0-10 (Elite):** Indistinguishable from brand docs. Perfect nuance, personal "I" voice, and unique creative angle.
+            - **7.0-8.9 (Good):** Matches structure but lacks that specific "spark" or "vulnerability" found in the best brand samples.
+            - **4.0-6.9 (Mediocre):** Generic "AI-style" content. Safe but lacks brand identity.
+            - **0.0-3.9 (Major Fail):** Wrong tone, clinical voice, or purely generic health advice without the brand's unique perspective.""",
             tools=[scoring_tool, learning_tool, kb_tool],
             memory=True,
             verbose=True,
@@ -2222,97 +2331,67 @@ class ContentCrewFactory:
         )
         
         reviewer_task = Task(
-                description="""Review content with HYBRID scoring.
+                description="""Review content with HYBRID scoring grounded in the Brand Blueprint.
 
                 CRITICAL: You MUST follow this EXACT process:
 
                 STEP 1 - GET AUTOMATIC SCORE:
-                Call score_content tool with the FULL generated content.
-                The tool will return something like:
-                "Overall Structure Score: 6.5/10"
-                EXTRACT this number - this is your AUTOMATIC_SCORE.
-                
-                DO NOT SKIP THIS STEP. You MUST call the tool first.
+                Call `score_content` tool with the FULL generated content. 
+                Extract the "Overall Structure Score" as your AUTOMATIC_SCORE.
 
-                STEP 2 - YOUR LLM JUDGMENT:
-                Now YOU evaluate these three dimensions (0-10 each):
+                STEP 2 - BRAND-GROUNDED JUDGMENT:
+                Evaluate these dimensions by comparing the content against the **Brand Blueprint** and **Past Learnings**:
                 
                 A) Tone Alignment (0-10):
-                - Does it use personal voice ("I", storytelling, anecdotes)?
-                - Is it conversational and warm, not clinical?
-                - Match brand's introspective, encouraging style.
+                - Does it match the specific "conversational" vs "clinical" ratio in the brand blueprint?
+                - Does it use the specific perspective (e.g., "I", "We") identified from the DB docs?
+                - Is the "Vulnerability Factor" present?
                 
                 B) Creative Freshness (0-10):
-                - Unique and engaging angle?
-                - Avoid generic clichés?
+                - Is the angle fresh or is it a generic cliché?
+                - Does it avoid patterns explicitly rejected in the Learning Memory?
                 
                 C) Practical Value (0-10):
-                - Actionable and useful?
-                
-                SCORING RULE: NEVER return 0 unless content is empty/toxic. 
-                If content is mediocre but safe, use 4.0-6.0 range.
-                
-                Calculate: LLM_SCORE = (Tone + Freshness + Value) / 3
+                - Is it as actionable as the top-performing brand samples?
 
-                STEP 3 - CALCULATE FINAL SCORE:
-                FINAL_SCORE = (AUTOMATIC_SCORE × 0.5) + (LLM_SCORE × 0.5)
-                
-                Example calculation:
-                - If score_content tool returned: "Overall Structure Score: 6.5/10"
-                - AUTOMATIC_SCORE = 6.5
-                - And your scores are: Tone=8, Freshness=7, Value=9
-                - Then LLM_SCORE = (8+7+9)/3 = 8.0
-                - FINAL_SCORE = (6.5 × 0.5) + (8.0 × 0.5) = 7.25
+                STEP 3 - INTERNAL REASONING:
+                Write a 2-sentence justification for each score. Why is it a 7 and not a 9?
 
-                STEP 4 - DECISION RULES:
-                - If FINAL_SCORE >= 8.0: decision = "APPROVED"
-                - If 7.0 <= FINAL_SCORE < 8.0: decision = "NEEDS_REVISION"
-                - If FINAL_SCORE < 7.0: decision = "REJECTED"
+                STEP 4 - CALCULATE FINAL SCORES:
+                - LLM_SCORE = (Tone + Freshness + Value) / 3
+                - FINAL_SCORE = (AUTOMATIC_SCORE × 0.5) + (LLM_SCORE × 0.5)
 
                 STEP 5 - OUTPUT STRICT JSON:
-                You MUST output ONLY valid JSON, nothing else. No preamble, no explanation.
-                
                 {{
-                    "decision": "APPROVED",
-                    "final_score": 7.25,
-                    "automatic_score": 6.5,
-                    "llm_score": 8.0,
+                    "decision": "APPROVED/NEEDS_REVISION/REJECTED",
+                    "final_score": X.XX,
+                    "automatic_score": X.X,
+                    "llm_score": X.X,
+                    "evaluation_reasoning": "Explicit breakdown of why these scores were given",
                     "creative_angle": "Brief description of the content's approach",
-                    "generated_content": "THE COMPLETE CONTENT GOES HERE - COPY IT EXACTLY",
+                    "generated_content": "THE COMPLETE CONTENT",
                     "detailed_scores": {{
-                        "tone_alignment": 8,
-                        "creative_freshness": 7,
-                        "practical_value": 9,
-                        "structure_alignment": 6.5
+                        "tone_alignment": X,
+                        "creative_freshness": X,
+                        "practical_value": X,
+                        "structure_alignment": X
                     }},
                     "measurements": {{
-                        "sentence_length": 15.5,
-                        "sentences_per_paragraph": 26.0,
-                        "target_sentence_length": 8.1,
-                        "target_sentences_per_paragraph": 148.3
+                        "sentence_length": X.X,
+                        "target_sentence_length": X.X,
+                        "sentences_per_paragraph": X.X,
+                        "target_sentences_per_paragraph": X.X
                     }},
                     "issues": {{
-                        "structural": "Sentence length off target (15.5 vs 8.1)",
-                        "voice": "Missing personal storytelling and 'I' statements",
-                        "engagement": "Could be more specific and less generic"
+                        "structural": "...",
+                        "voice": "...",
+                        "engagement": "..."
                     }}
                 }}
-
-                CRITICAL RULES YOU MUST FOLLOW:
-                1. ALWAYS call score_content tool FIRST - get the automatic score
-                2. USE the actual number from the tool output - don't make up 0 or guess
-                3. CALCULATE final_score using the formula - show your math if needed
-                4. Include the COMPLETE generated_content in your JSON (every word)
-                5. ONLY output valid JSON - no text before or after the JSON
-                6. If the tool returns an error, set automatic_score to 0 and note it in issues
                 
-                DEBUGGING CHECKLIST:
-                - [ ] Did I call score_content tool?
-                - [ ] Did I extract the number from "Overall Structure Score: X.X/10"?
-                - [ ] Did I calculate LLM_SCORE = (tone + fresh + value) / 3?
-                - [ ] Did I calculate FINAL = (auto × 0.5) + (llm × 0.5)?
-                - [ ] Is my JSON valid (no trailing commas, proper quotes)?
-                - [ ] Did I include the FULL generated_content?""",
+                CRITICAL: Use the EXACT target metrics from the Analyst in your JSON!
+                DO NOT output any text except the JSON.
+                DO NOT use emojis anywhere in the output.""",
                 agent=reviewer_agent,
                 context=[writer_task, brand_analysis_task, creative_strategy_task],
                 expected_output="Valid JSON with hybrid scores and complete content"
