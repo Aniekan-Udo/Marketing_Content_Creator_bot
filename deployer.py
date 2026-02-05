@@ -1306,12 +1306,39 @@ class Marketing_Rag_System:
                     logger.info(f"Total documents for indexing: {len(documents)}")
                     
                     # Build index
-                    logger.info("Building vector index...")
+                    # Build index with BATCHING to avoid SSL/Connection errors
+                    logger.info("Building vector index (Batched)...")
+                    
+                    BATCH_SIZE = 5
+                    total_docs = len(documents)
+                    
+                    # Initialize with first batch
+                    first_batch = documents[:BATCH_SIZE]
+                    logger.info(f"Processing Initial Batch 1/{(total_docs + BATCH_SIZE - 1)//BATCH_SIZE} ({len(first_batch)} docs)")
+                    
                     index = VectorStoreIndex.from_documents(
-                        documents,
+                        first_batch,
                         storage_context=storage_context,
                         show_progress=True
                     )
+                    
+                    # Insert remaining batches
+                    if total_docs > BATCH_SIZE:
+                        import time
+                        for i in range(BATCH_SIZE, total_docs, BATCH_SIZE):
+                            batch = documents[i : i + BATCH_SIZE]
+                            batch_num = i//BATCH_SIZE + 1
+                            total_batches = (total_docs + BATCH_SIZE - 1)//BATCH_SIZE
+                            
+                            logger.info(f"Processing Batch {batch_num}/{total_batches} ({len(batch)} docs)")
+                            
+                            try:
+                                # Small delay to let DB breathe
+                                time.sleep(0.5) 
+                                index.insert_documents(batch)
+                            except Exception as batch_e:
+                                logger.error(f"Batch {batch_num} failed: {batch_e}")
+                                raise batch_e
                     logger.info(f"Index built successfully: {self.table_name}")
                 
                 logger.info("="*80)
