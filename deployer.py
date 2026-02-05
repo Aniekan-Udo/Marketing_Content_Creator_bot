@@ -792,7 +792,6 @@ class BrandLearningMemory:
             cursor.execute(f"""
                 SELECT id FROM {self.table_name}
                 WHERE generation_id = %s
-                FOR UPDATE  -- Lock row for update
             """, (generation_id,))
             
             existing = cursor.fetchone()

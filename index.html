@@ -211,9 +211,14 @@
         
         <div id="filePreview" class="text-xs text-emerald-700 dark:text-emerald-300 hidden mt-1"></div>
         
-        <button type="submit" class="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all">
-          <i class="fas fa-cloud-upload-alt mr-2"></i> Build Knowledge Base
-        </button>
+        <div class="flex space-x-3">
+          <button type="submit" class="flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all">
+            <i class="fas fa-cloud-upload-alt mr-2"></i> Build Knowledge Base
+          </button>
+          <button type="button" id="refreshMetricsBtn" class="px-6 py-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl font-semibold shadow-sm hover:shadow-md transition-all border border-emerald-200">
+             <i class="fas fa-sync-alt mr-2"></i> Refresh Metrics
+          </button>
+        </div>
       </form>
       <div id="kbStatus" class="mt-4 p-3 bg-white/50 rounded-xl text-sm hidden"></div>
     </div>
@@ -583,6 +588,44 @@
     `;
   }
 
+  // ===== REFRESH METRICS HANDLER =====
+  const refreshMetricsBtn = document.getElementById('refreshMetricsBtn');
+  
+  refreshMetricsBtn.addEventListener('click', async () => {
+    const businessId = document.getElementById('businessIdInput').value.trim() || currentBusinessId;
+    
+    if (!businessId) {
+       showKBError('Business ID is required to refresh metrics');
+       return;
+    }
+
+    const originalHTML = refreshMetricsBtn.innerHTML;
+    refreshMetricsBtn.disabled = true;
+    refreshMetricsBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Refreshing...';
+
+    try {
+      const res = await fetch(`/api/refresh-metrics/${businessId}`, { method: 'POST' });
+      const data = await res.json();
+
+      if (data.success) {
+        kbStatus.classList.remove('hidden');
+        kbStatus.className = 'mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl text-sm';
+        kbStatus.innerHTML = `
+          <p class="font-semibold text-blue-800 dark:text-blue-200">✅ Metrics Refreshed</p>
+          <p class="text-blue-700 dark:text-blue-300 text-xs mt-1">Brand metrics updated for ${businessId}</p>
+        `;
+      } else {
+        throw new Error(data.detail || 'Refresh failed');
+      }
+    } catch (err) {
+      console.error('Refresh error:', err);
+      showKBError(err.message || 'Failed to refresh metrics');
+    } finally {
+      refreshMetricsBtn.disabled = false;
+      refreshMetricsBtn.innerHTML = originalHTML;
+    }
+  });
+
   // ===== VOICE SELECTION =====
   let currentVoice = 'formal';
   const voiceFormal = document.getElementById('voiceFormal');
@@ -718,6 +761,7 @@
     const businessId = data.business_id;
     const topic = data.topic;
     const formatType = data.format_type;
+    const processingTime = data.processing_time_ms ? `${(data.processing_time_ms / 1000).toFixed(1)}s` : 'N/A';
     const contentType = formatType.toLowerCase().includes('blog') ? 'blog' : 
                         formatType.toLowerCase().includes('social') ? 'social' : 'ad';
     
@@ -807,6 +851,7 @@ ${escapeHtml(content)}
           <div><strong>Format:</strong> ${escapeHtml(formatType)}</div>
           <div><strong>Creative Angle:</strong> ${escapeHtml(creativeAngle)}</div>
           <div><strong>Generated:</strong> ${new Date(data.timestamp).toLocaleString()}</div>
+          <div><strong>Time:</strong> ${processingTime}</div>
         </div>
       </div>
 
