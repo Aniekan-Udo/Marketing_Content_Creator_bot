@@ -9,10 +9,11 @@ from pathlib import Path
 from datetime import datetime
 from functools import wraps
 from ratelimit import limits, sleep_and_retry
-from typing import Dict, Optional, Any, List
+from typing import Dict, Optional, Any, List, Tuple
 from collections import defaultdict, Counter
 from threading import Lock, RLock
 from urllib.parse import urlparse
+import uuid
 
 from pydantic import Field
 
@@ -30,10 +31,7 @@ from tavily import TavilyClient
 from llama_index.core import Settings, SimpleDirectoryReader, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SemanticSplitterNodeParser, SimpleNodeParser
 from llama_index.vector_stores.postgres import PGVectorStore
-#from llama_index.embeddings.cohere import CohereEmbedding
 from llama_index.embeddings.fastembed import FastEmbedEmbedding
-
-
 
 # Local Imports
 from db import (
@@ -139,10 +137,7 @@ def get_llm(temperature=0.7):
         
     except Exception as e:
         logger.error(f"Failed to create LLM: {e}", exc_info=True)
-        raise
-
-
-# ===== BRAND METRICS ANALYZER =====
+        raise# ===== BRAND METRICS ANALYZER =====
 
 class BrandMetricsAnalyzer:
     """
@@ -560,7 +555,6 @@ class BrandMetricsAnalyzer:
                 'sample_count': len(docs)
             }
 
-
             logger.info(f"   BRAND METRICS LEARNED for {self.business_id}/{self.content_type}:")
             logger.info(f"   Analyzed {self.metrics['sample_count']} documents")
             logger.info(f"   Target sentence length: {self.metrics['target_sentence_length']:.1f} words")
@@ -570,7 +564,6 @@ class BrandMetricsAnalyzer:
             
             if self.metrics['signature_phrases']:
                 logger.info(f"   Sample phrases: {self.metrics['signature_phrases'][:5]}")
-                
     
     def refresh_metrics(self):
         """Refresh metrics when new documents are uploaded"""
@@ -702,9 +695,7 @@ class BrandMetricsAnalyzer:
                 return examples_str
         except Exception as e:
             logger.warning(f"Failed to fetch top examples: {e}")
-            return ""
-
-# ===== BRAND LEARNING MEMORY (PRODUCTION-READY) =====
+            return ""# ===== BRAND LEARNING MEMORY (PRODUCTION-READY) =====
 
 class BrandLearningMemory:
     """
@@ -1135,14 +1126,9 @@ class Marketing_Rag_System:
             
             try:
                 logger.info("Setting up embedding model...")
-                
-        #         self.embed_model = CohereEmbedding(
-        #     api_key=os.getenv("COHERE_API_KEY"),
-        #     model_name=os.getenv("COHERE_EMBED_MODEL", "embed-english-light-v3.0")
-        # )
-                self.embed_model=FastEmbedEmbedding(
-    model_name="BAAI/bge-small-en-v1.5"
-)
+                self.embed_model = FastEmbedEmbedding(
+                    model_name="BAAI/bge-small-en-v1.5"
+                )
                 self._embed_model_cache = self.embed_model
                 logger.info("Embedding model ready!")
                 return self.embed_model
@@ -1304,7 +1290,6 @@ class Marketing_Rag_System:
                     
                     logger.info(f"Total documents for indexing: {len(documents)}")
                     
-                    # Build index
                     # Build index with BATCHING to avoid SSL/Connection errors
                     logger.info("Building vector index (Batched)...")
                     
@@ -1447,10 +1432,7 @@ class BrandVoiceKnowledgeBase:
             
         except Exception as e:
             logger.error(f"get_style_guide failed: {e}", exc_info=True)
-            raise
-
-
-# ===== TOOLS WITH RATE LIMITING =====
+            raise# ===== TOOLS WITH RATE LIMITING =====
 
 class KBQueryTool(BaseTool):
     """Knowledge base query tool with error handling"""
@@ -1711,61 +1693,158 @@ class ContentScoringTool(BaseTool):
 # Global tool instances
 tavily_search = TavilySearchTool()
 
-import uuid
-import json
-import re
-# ===== GENERATION MANAGEMENT WITH RETRY =====
 
-def extract_json_with_balanced_braces(text: str) -> dict:
+# ===== NEW HELPER FUNCTIONS FOR ITERATIVE GENERATION =====
+
+def extract_iteration_feedback(critic_output: str) -> Dict[str, Any]:
     """
-    Extract JSON object with proper brace balancing.
-    Handles nested objects correctly (fixes the regex bug).
+    Parse critic's structured feedback to extract actionable issues.
     
     Args:
-        text: Raw text that may contain JSON
+        critic_output: Raw output from critic agent
         
     Returns:
-        Parsed JSON dict
-        
-    Raises:
-        ValueError: If no valid JSON with final_score found
+        Dict with parsed feedback including issues and recommendations
     """
-    depth = 0
-    start_idx = None
-    
-    for i, char in enumerate(text):
-        if char == '{':
-            if depth == 0:
-                start_idx = i
-            depth += 1
-        elif char == '}':
-            depth -= 1
-            if depth == 0 and start_idx is not None:
-                # Found a complete JSON object
-                potential_json = text[start_idx:i+1]
-                if '"final_score"' in potential_json:
-                    try:
-                        return json.loads(potential_json)
-                    except json.JSONDecodeError:
-                        # Try next JSON object if this one is malformed
-                        start_idx = None
-                        continue
-    
-    raise ValueError("No valid JSON with final_score found")
+    try:
+        # Try to find JSON in the output
+        json_match = re.search(r'\{.*?"decision".*?\}', critic_output, re.DOTALL)
+        
+        if json_match:
+            feedback_data = json.loads(json_match.group(0))
+            return {
+                'decision': feedback_data.get('decision', 'revise'),
+                'current_score': feedback_data.get('current_score', 0.0),
+                'issues': feedback_data.get('issues', []),
+                'specific_fixes': feedback_data.get('specific_fixes', []),
+                'what_to_keep': feedback_data.get('what_to_keep', [])
+            }
+        
+        # Fallback: extract issues from text
+        issues = []
+        if 'sentence length' in critic_output.lower():
+            issues.append("Adjust sentence length to match target")
+        if 'phrase' in critic_output.lower() and 'missing' in critic_output.lower():
+            issues.append("Incorporate more signature phrases")
+        if 'paragraph' in critic_output.lower():
+            issues.append("Adjust paragraph structure")
+        
+        return {
+            'decision': 'revise' if issues else 'approve',
+            'current_score': 7.0,
+            'issues': issues,
+            'specific_fixes': issues,
+            'what_to_keep': []
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to parse critic feedback: {e}")
+        return {
+            'decision': 'revise',
+            'current_score': 7.0,
+            'issues': ['General improvement needed'],
+            'specific_fixes': ['Review and refine content'],
+            'what_to_keep': []
+        }
 
-from typing import Tuple
+
+def format_iteration_context(previous_content: str, feedback: Dict[str, Any], iteration_num: int) -> str:
+    """
+    Format previous attempt and feedback for next iteration.
+    
+    Args:
+        previous_content: The content from previous iteration
+        feedback: Parsed feedback from critic
+        iteration_num: Current iteration number
+        
+    Returns:
+        Formatted context string for writer agent
+    """
+    context = f"""
+=== ITERATION {iteration_num} REFINEMENT ===
+
+PREVIOUS ATTEMPT:
+{previous_content}
+
+CRITIC FEEDBACK (Score: {feedback.get('current_score', 0)}/10):
+
+ISSUES TO FIX:
+"""
+    for i, issue in enumerate(feedback.get('issues', []), 1):
+        context += f"{i}. {issue}\n"
+    
+    if feedback.get('specific_fixes'):
+        context += "\nSPECIFIC ACTIONS:\n"
+        for i, fix in enumerate(feedback.get('specific_fixes', []), 1):
+            context += f"{i}. {fix}\n"
+    
+    if feedback.get('what_to_keep'):
+        context += "\nKEEP THESE ELEMENTS (they're working well):\n"
+        for i, element in enumerate(feedback.get('what_to_keep', []), 1):
+            context += f"{i}. {element}\n"
+    
+    context += """
+YOUR TASK: Revise ONLY the problematic areas. Keep what's working.
+Do NOT start from scratch - build on the previous attempt.
+"""
+    
+    return context
+
+
+def extract_content_from_writer_output(output: str) -> str:
+    """
+    Extract clean content from writer's output, removing metadata.
+    
+    Args:
+        output: Raw output from writer agent
+        
+    Returns:
+        Clean content string
+    """
+    try:
+        # Look for [FINAL CONTENT] tags
+        content_match = re.search(r'\[FINAL CONTENT\](.*?)\[/FINAL CONTENT\]', output, re.DOTALL | re.IGNORECASE)
+        
+        if content_match:
+            content = content_match.group(1).strip()
+            logger.info(f"Extracted content from [FINAL CONTENT] tags: {len(content)} chars")
+            return content
+        
+        # Fallback: remove JSON blocks and metadata
+        content = output
+        content = re.sub(r'\{[^}]*"decision"[^}]*\}', '', content, flags=re.DOTALL | re.IGNORECASE)
+        content = re.sub(r'\{[^}]*"final_score"[^}]*\}', '', content, flags=re.DOTALL | re.IGNORECASE)
+        content = re.sub(r'\[METADATA\].*?\[/METADATA\]', '', content, flags=re.DOTALL | re.IGNORECASE)
+        
+        # Remove iteration logs
+        content = re.sub(r'\[ITERATION LOG\].*?\[/ITERATION LOG\]', '', content, flags=re.DOTALL | re.IGNORECASE)
+        
+        content = content.strip()
+        logger.info(f"Extracted content via fallback: {len(content)} chars")
+        return content
+        
+    except Exception as e:
+        logger.error(f"Content extraction failed: {e}")
+        return output.strip()
+    
+
+# ===== ITERATIVE GENERATION WITH CRITIC LOOP =====
 
 @retry(
     stop=stop_after_attempt(2),
     wait=wait_exponential(multiplier=2, min=4, max=20),
     reraise=True
 )
-def run_generation_with_learning(business_id: str, topic: str, 
-                           format_type: str, voice: str) -> Tuple[Dict[str, Any], str]:
+def run_iterative_generation(business_id: str, topic: str, 
+                             format_type: str, voice: str) -> Tuple[Dict[str, Any], str]:
     """
-    Generate content using improved crew with automatic refinement.
+    Generate content using iterative refinement with external critic feedback.
     
-    NO EXTERNAL RETRY LOOP - the writer agent handles iteration internally.
+    Process:
+    1. Initial generation by writer
+    2. Critic reviews and provides feedback
+    3. Writer revises based on specific feedback
+    4. Repeat until score >= 8.0 OR max 3 iterations
     
     Returns:
         (result_dict, generation_id)
@@ -1807,7 +1886,7 @@ def run_generation_with_learning(business_id: str, topic: str,
     else:
         content_type = "blog"
     
-    # Create improved crew (ONE TIME)
+    # Initialize components
     kb = BrandVoiceKnowledgeBase()
     learning_memory = BrandLearningMemory(business_id=business_id)
     metrics_analyzer = BrandMetricsAnalyzer(business_id=business_id, content_type=content_type)
@@ -1820,219 +1899,184 @@ def run_generation_with_learning(business_id: str, topic: str,
         business_id=business_id
     )
     
-    crew = factory.create_crew()
+    # Create base crew (research, strategy, brand analysis)
+    base_crew = factory.create_base_crew()
     
-    logger.info(f"Starting improved crew generation for {generation_id}")
-    
-    # Run crew ONCE (no retry loop needed)
-    result = crew.kickoff(inputs={
+    # Run base crew to get context
+    logger.info(f"Running base crew (research, strategy, brand analysis)...")
+    base_inputs = {
         "topic": topic,
         "format": format_type,
         "voice": voice,
         "content_type": content_type
-    })
+    }
+    base_result = base_crew.kickoff(inputs=base_inputs)
     
-    result_str = str(result)
-    logger.info(f"Crew result length: {len(result_str)} chars")
+    logger.info(f"Base crew complete. Starting iterative refinement...")
     
-    # ===== PARSE RESULT =====
-    try:
-        # Extract JSON from validator output
-        json_match = re.search(r'\{[^{}]*"validation_status"[^{}]*\}', result_str, re.DOTALL)
+    # Iterative refinement loop
+    MAX_ITERATIONS = 3
+    TARGET_SCORE = 8.0
+    
+    current_content = None
+    current_score = 0.0
+    creative_angle = "Unknown"
+    iteration_history = []
+    
+    for iteration in range(1, MAX_ITERATIONS + 1):
+        logger.info(f"=== ITERATION {iteration}/{MAX_ITERATIONS} ===")
         
-        if not json_match:
-            # Fallback: try to find any JSON with final_score
-            json_match = re.search(r'\{.*"final_score".*\}', result_str, re.DOTALL)
-        
-        if json_match:
-            result_data = json.loads(json_match.group(0))
-            
-            creative_angle = result_data.get('creative_angle', 'Unknown')
-            final_score = float(result_data.get('final_score', 7.5))
-            generated_content = result_data.get('generated_content', '')
-            
-            # Extract iteration count if present
-            iteration_count = result_data.get('iteration_count', 1)
-            verified_score = result_data.get('verified_structure_score', final_score)
-            
-            logger.info(f"Parsed result successfully")
-            logger.info(f"  - Creative angle: {creative_angle}")
-            logger.info(f"  - Final score: {final_score}")
-            logger.info(f"  - Iterations: {iteration_count}")
-            logger.info(f"  - Content length: {len(generated_content)}")
-            
+        # Create writer crew for this iteration
+        if iteration == 1:
+            # First iteration: write from scratch
+            writer_crew = factory.create_writer_crew(
+                iteration_num=iteration,
+                previous_content=None,
+                feedback=None
+            )
+            writer_inputs = {**base_inputs, "base_context": str(base_result)}
         else:
-            # Fallback parsing
-            logger.warning("Could not find JSON in result, using fallback")
-            creative_angle = "Unknown Angle"
-            final_score = 7.5
-            generated_content = result_str
-            iteration_count = 1
+            # Subsequent iterations: revise based on feedback
+            writer_crew = factory.create_writer_crew(
+                iteration_num=iteration,
+                previous_content=current_content,
+                feedback=feedback
+            )
+            writer_inputs = {
+                **base_inputs,
+                "base_context": str(base_result),
+                "previous_content": current_content,
+                "feedback": format_iteration_context(current_content, feedback, iteration)
+            }
         
+        # Run writer
+        writer_result = writer_crew.kickoff(inputs=writer_inputs)
+        current_content = extract_content_from_writer_output(str(writer_result))
+        
+        if not current_content or len(current_content.strip()) < 50:
+            logger.error(f"Iteration {iteration}: Content too short or empty!")
+            current_content = str(writer_result)
+        
+        logger.info(f"Iteration {iteration}: Generated {len(current_content)} chars")
+        
+        # Create critic crew to evaluate
+        critic_crew = factory.create_critic_crew()
+        critic_inputs = {
+            **base_inputs,
+            "content_to_review": current_content
+        }
+        
+        critic_result = critic_crew.kickoff(inputs=critic_inputs)
+        
+        # Parse critic feedback
+        feedback = extract_iteration_feedback(str(critic_result))
+        current_score = feedback.get('current_score', 0.0)
+        decision = feedback.get('decision', 'revise')
+        
+        # Extract creative angle if available
+        angle_match = re.search(r'"creative_angle"\s*:\s*"([^"]+)"', str(writer_result))
+        if angle_match:
+            creative_angle = angle_match.group(1)
+        
+        iteration_history.append({
+            'iteration': iteration,
+            'score': current_score,
+            'decision': decision,
+            'issues': feedback.get('issues', []),
+            'content_length': len(current_content)
+        })
+        
+        logger.info(f"Iteration {iteration}: Score={current_score:.1f}, Decision={decision}")
+        
+        # Check if we should stop
+        if decision == 'approve' or current_score >= TARGET_SCORE:
+            logger.info(f"✓ Quality threshold reached at iteration {iteration}")
+            break
+        
+        if iteration == MAX_ITERATIONS:
+            logger.info(f"⚠ Reached max iterations ({MAX_ITERATIONS})")
+            break
+    
+    # Final validation
+    logger.info("Running final validator...")
+    validator_crew = factory.create_validator_crew()
+    validator_inputs = {
+        **base_inputs,
+        "final_content": current_content,
+        "iteration_count": len(iteration_history),
+        "final_score_from_critic": current_score
+    }
+    
+    validator_result = validator_crew.kickoff(inputs=validator_inputs)
+    
+    # Parse final result
+    try:
+        json_match = re.search(r'\{.*?"validation_status".*?\}', str(validator_result), re.DOTALL)
+        if json_match:
+            final_data = json.loads(json_match.group(0))
+            final_score = final_data.get('final_score', current_score)
+            validated_content = final_data.get('generated_content', current_content)
+            
+            # Use validated content if it's substantial
+            if validated_content and len(validated_content.strip()) > 50:
+                current_content = validated_content
+        else:
+            final_score = current_score
     except Exception as e:
-        logger.error(f"Error parsing result: {e}", exc_info=True)
-        creative_angle = "Unknown Angle"
-        final_score = 7.5
-        generated_content = result_str
-        iteration_count = 1
+        logger.error(f"Failed to parse validator output: {e}")
+        final_score = current_score
     
-    # Validate content
-    if not generated_content or len(generated_content.strip()) < 10:
-        logger.error("Content is empty or too short!")
-        generated_content = result_str
+    logger.info(f"Final score: {final_score:.1f}, Iterations: {len(iteration_history)}")
     
-    logger.info(f"Final content validated: {len(generated_content)} chars")
-    
-    # ===== SAVE LEARNING =====
+    # Save learning
     try:
         learning_memory.save_learning(
             generation_id=generation_id,
             content_type=content_type,
             creative_angle=creative_angle,
-            generated_content=generated_content,
+            generated_content=current_content,
             auto_score=final_score,
             topic=topic,
             format_type=format_type,
             user_id=user_id
         )
-        logger.info(f"Auto-saved learning for generation {generation_id}")
+        logger.info(f"Saved learning for generation {generation_id}")
     except Exception as e:
-        logger.error(f"Failed to auto-save learning: {e}", exc_info=True)
+        logger.error(f"Failed to save learning: {e}", exc_info=True)
     
-    # ===== RETURN RESULT =====
+    # Build result
     result_dict = {
-        "content": generated_content,
+        "content": current_content,
         "auto_score": final_score,
         "creative_angle": creative_angle,
         "generation_id": generation_id,
         "topic": topic,
         "format_type": format_type,
-        "iteration_count": iteration_count,
-        "full_result": result_str
+        "iteration_count": len(iteration_history),
+        "iteration_history": iteration_history,
+        "full_result": str(validator_result)
     }
     
     logger.info(f"Generation complete: {generation_id}")
-    logger.info(f"  - Content: {len(generated_content)} chars")
+    logger.info(f"  - Content: {len(current_content)} chars")
     logger.info(f"  - Score: {final_score}/10")
-    logger.info(f"  - Iterations: {iteration_count}")
+    logger.info(f"  - Iterations: {len(iteration_history)}")
     logger.info(f"  - Angle: {creative_angle}")
     
     return result_dict, generation_id
 
 
-def extract_score_from_result(result_str: str) -> float:
-    """Extract final score from crew result"""
-    try:
-        score_patterns = [
-            r'"final_score"\s*:\s*(\d+\.?\d*)',
-            r'final_score\s*:\s*(\d+\.?\d*)',
-            r'Score:\s*(\d+\.?\d*)',
-            r'(\d+\.?\d*)/10'
-        ]
-        
-        for pattern in score_patterns:
-            match = re.search(pattern, result_str, re.IGNORECASE)
-            if match:
-                return float(match.group(1))
-        
-        return 7.5
-        
-    except Exception as e:
-        logger.warning(f"Could not extract score: {e}")
-        return 7.5
-
-
-def extract_creative_angle_from_result(result_str: str) -> str:
-    """Extract creative angle from crew result"""
-    try:
-        angle_patterns = [
-            r'"creative_angle"\s*:\s*"([^"]+)"',
-            r'Creative Angle[:\s]+([^\n]+)',
-            r'creative_angle[:\s]+([^\n]+)'
-        ]
-        
-        for pattern in angle_patterns:
-            match = re.search(pattern, result_str, re.IGNORECASE)
-            if match:
-                angle = match.group(1).strip()
-                angle = re.sub(r'^[\[\]"\s]+|[\[\]"\s]+$', '', angle)
-                return angle
-        
-        return "Unknown Angle"
-        
-    except Exception as e:
-        logger.warning(f"Could not extract creative angle: {e}")
-        return "Unknown Angle"
-
-
-def extract_content_from_result(result_str: str) -> str:
-    """Extract generated content from result"""
-    try:
-        content = result_str
-        
-        # Remove JSON blocks
-        content = re.sub(r'\{[^}]*"decision"[^}]*\}', '', content, flags=re.DOTALL | re.IGNORECASE)
-        content = re.sub(r'\{[^}]*"final_score"[^}]*\}', '', content, flags=re.DOTALL | re.IGNORECASE)
-        
-        # Remove metadata
-        if "---" in content:
-            content = content.split("---")[0]
-        
-        content = re.split(r'(?:^|\n)METADATA:', content, flags=re.IGNORECASE)[0]
-        content = re.split(r'(?:^|\n)SELF-CHECK:', content, flags=re.IGNORECASE)[0]
-        
-        return content.strip()
-        
-    except Exception as e:
-        logger.warning(f"Could not extract content: {e}")
-        return result_str
-
-
-
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
-    reraise=True
-)
-def update_generation_with_human_feedback(generation_id: str, 
-                                         business_id: str,
-                                         human_approved: bool, 
-                                         human_score: float,
-                                         human_feedback: str) -> bool:
-    """Update existing learning with human feedback"""
-    learning_memory = BrandLearningMemory(business_id=business_id)
-    
-    success = learning_memory.update_with_human_feedback(
-        generation_id=generation_id,
-        human_approved=human_approved,
-        human_score=human_score,
-        human_feedback=human_feedback
-    )
-    
-    if success:
-        content_type = "blog"
-        stats = learning_memory.get_learning_stats(content_type)
-        
-        logger.info(f"Human feedback saved for {generation_id}")
-        logger.info(f"Agent Accuracy: {stats.get('agent_accuracy', 0):.1f}%")
-        logger.info(f"Approval Rate: {stats.get('approval_rate', 0):.1f}%")
-    else:
-        logger.warning(f"Generation {generation_id} not found")
-    
-    return success
-
-
-# ===== CREW FACTORY WITH ALL AGENTS =====
+# ===== CONTENT CREW FACTORY WITH ITERATIVE DESIGN =====
 
 class ContentCrewFactory:
     """
-    Factory for creating content generation crew with AUTOMATIC refinement.
+    Factory for creating specialized crews for iterative content generation.
     
-    Key Features:
-    - Writer agent self-corrects using scoring tool
-    - No external retry loops needed
-    - Reviewer validates final output only
-    - Full iteration tracking
+    Crews:
+    1. Base Crew: Research + Strategy + Brand Analysis (run once)
+    2. Writer Crew: Generate or revise content (run per iteration)
+    3. Critic Crew: Evaluate and provide feedback (run per iteration)
+    4. Validator Crew: Final quality check (run once)
     """
     
     def __init__(self, kb: BrandVoiceKnowledgeBase, tavily_search: TavilySearchTool,
@@ -2043,26 +2087,29 @@ class ContentCrewFactory:
         self.learning_memory = learning_memory
         self.metrics_analyzer = metrics_analyzer
         self.business_id = business_id
-    
-    def create_crew(self) -> Crew:
-        """Create the crew with automatic iterative refinement"""
-        
-        # Initialize tools
-        kb_tool = KBQueryTool(kb=self.kb, business_id=self.business_id)
-        learning_tool = LearningMemoryTool(memory=self.learning_memory)
-        metrics_tool = BrandMetricsTool(analyzer=self.metrics_analyzer)
-        scoring_tool = ContentScoringTool(analyzer=self.metrics_analyzer)
         
         # Get few-shot examples
-        few_shot_examples = self.metrics_analyzer.get_top_examples(limit=3)
-        if not few_shot_examples:
-            few_shot_examples = "No previous examples available. Follow brand guidelines strictly."
+        self.few_shot_examples = metrics_analyzer.get_top_examples(limit=3)
+        if not self.few_shot_examples:
+            self.few_shot_examples = "No previous examples available. Follow brand guidelines strictly."
         
         # Different LLMs for different agent types
-        creative_llm = get_llm(temperature=0.8)
-        analytical_llm = get_llm(temperature=0.5)
+        self.creative_llm = get_llm(temperature=0.8)
+        self.analytical_llm = get_llm(temperature=0.5)
         
-        # ===== AGENT 1: RESEARCHER (UNCHANGED) =====
+        # Initialize tools
+        self.kb_tool = KBQueryTool(kb=self.kb, business_id=self.business_id)
+        self.learning_tool = LearningMemoryTool(memory=self.learning_memory)
+        self.metrics_tool = BrandMetricsTool(analyzer=self.metrics_analyzer)
+        self.scoring_tool = ContentScoringTool(analyzer=self.metrics_analyzer)
+    
+    def create_base_crew(self) -> Crew:
+        """
+        Create base crew for research, strategy, and brand analysis.
+        This runs ONCE per generation.
+        """
+        
+        # Researcher Agent
         researcher_agent = Agent(
             role="Research Analyst",
             goal="Find current, factual information and diverse perspectives on {topic}",
@@ -2074,7 +2121,7 @@ class ContentCrewFactory:
 
                 You provide factual information WITHOUT brand voice - that's the writer's job.""",
             tools=[self.tavily_search],
-            llm=analytical_llm,
+            llm=self.analytical_llm,
             verbose=True,
         )
         
@@ -2093,7 +2140,7 @@ class ContentCrewFactory:
             agent=researcher_agent,
         )
         
-        # ===== AGENT 2: CREATIVE STRATEGIST (UNCHANGED) =====
+        # Creative Strategist Agent
         creative_strategist = Agent(
             role="Creative Content Strategist",
             goal="Find unique, engaging angles that match brand voice but stand out",
@@ -2109,8 +2156,8 @@ class ContentCrewFactory:
                     - Aligned with brand personality
                     - Engaging and memorable
                     - Practically valuable""",
-            tools=[kb_tool, learning_tool],
-            llm=creative_llm,
+            tools=[self.kb_tool, self.learning_tool],
+            llm=self.creative_llm,
             verbose=True,
         )
         
@@ -2151,7 +2198,7 @@ class ContentCrewFactory:
             expected_output="2-3 creative angles with recommended approach"
         )
         
-        # ===== AGENT 3: BRAND VOICE ANALYST (UNCHANGED) =====
+        # Brand Voice Analyst Agent
         brand_analyst = Agent(
             role="Brand Voice Pattern Analyst",
             goal="Extract concrete metrics and qualitative patterns from brand documents",
@@ -2161,8 +2208,8 @@ class ContentCrewFactory:
                 2. KB QUERIES: Qualitative patterns (tone, style, approach)
 
                 You provide MEASURABLE CONSTRAINTS for the writer.""",
-            tools=[kb_tool, metrics_tool],
-            llm=analytical_llm,
+            tools=[self.kb_tool, self.metrics_tool],
+            llm=self.analytical_llm,
             verbose=True,
         )
         
@@ -2201,249 +2248,312 @@ class ContentCrewFactory:
             expected_output="Measurable brand blueprint with exact metrics and patterns"
         )
         
-        # ===== AGENT 4: WRITER WITH SELF-CORRECTION (ENHANCED) =====
-        writer_agent = Agent(
-            role="Self-Correcting Brand Voice Writer",
-            goal="Write content matching brand metrics, iterating until quality score >= 8.0",
-            backstory=f"""You are a Brand Voice Mimic with built-in quality control.
-            
-            **YOUR UNIQUE ABILITY:** You write, score, and refine your own work.
+        return Crew(
+            agents=[researcher_agent, creative_strategist, brand_analyst],
+            tasks=[research_task, creative_strategy_task, brand_analysis_task],
+            process=Process.sequential,
+            verbose=True,
+        )
+    
+    def create_writer_crew(self, iteration_num: int, previous_content: Optional[str] = None, 
+                          feedback: Optional[Dict[str, Any]] = None) -> Crew:
+        """
+        Create writer crew for generating or revising content.
+        
+        Args:
+            iteration_num: Current iteration number
+            previous_content: Content from previous iteration (None for first iteration)
+            feedback: Feedback from critic (None for first iteration)
+        """
+        
+        if iteration_num == 1:
+            # First iteration: generate from scratch
+            writer_backstory = f"""You are a Brand Voice Mimic.
             
             **FEW-SHOT TRAINING (MIMIC THESE SAMPLES):**
-            {few_shot_examples}
+            {self.few_shot_examples}
             
-            **YOUR ITERATIVE PROCESS:**
-            1. **Draft:** Write initial content using brand blueprint
-            2. **Score:** Use score_content tool to objectively measure quality
-            3. **Analyze:** Identify specific gaps (sentence length, phrases, tone)
-            4. **Refine:** Fix ONLY the identified issues (keep what works)
-            5. **Repeat:** Continue until structure_score >= 8.0 OR 3 attempts
+            Your job: Write content that perfectly matches the brand blueprint.
+            Use the creative strategy and brand analysis provided to you.
+            """
             
-            **SCORING INTERPRETATION:**
-            - Structure Score < 6.0: Major structural issues (sentence length WAY off)
-            - Structure Score 6.0-7.9: Close but needs tweaking
-            - Structure Score >= 8.0: Structurally aligned ✓
-            
-            **REFINEMENT STRATEGY:**
-            - If sentence length off: Rewrite specific sentences to match target
-            - If missing phrases: Naturally incorporate 2-3 signature phrases
-            - If tone misaligned: Adjust vocabulary and perspective
-            
-            **CRITICAL:** You must show your work. After each iteration, explain what you fixed.""",
-            tools=[kb_tool, metrics_tool, scoring_tool],  # CRITICAL: Added scoring_tool
-            llm=creative_llm,
-            verbose=True,
-            memory=True,  # Enables iteration awareness
-        )
-        
-        writer_task = Task(
-            description="""Write {topic} content in {format} format using ITERATIVE REFINEMENT.
+            writer_description = """Write {topic} content in {format} format.
 
-            **YOUR MISSION:** Produce content with structure_score >= 8.0
+            **PROCESS:**
+            1. Review the brand blueprint (from brand analysis)
+            2. Review the creative strategy (recommended angle)
+            3. Write content that:
+               - Matches target sentence length (±2 words)
+               - Uses 3-5 signature phrases naturally
+               - Follows the creative angle
+               - Matches brand tone and perspective
             
-            **STEP-BY-STEP PROCESS:**
-            
-            === ITERATION 1: INITIAL DRAFT ===
-            1. Review the Brand Blueprint from brand_analysis_task
-            2. Review Creative Strategy from creative_strategy_task
-            3. Write your first draft:
-               - Use target sentence length from metrics
-               - Incorporate 2-3 signature phrases naturally
-               - Follow the recommended creative angle
-               - Match the tone and perspective
-            
-            4. **IMMEDIATELY SCORE YOUR DRAFT:**
-               Call score_content tool: {{"content": "<your complete draft>"}}
-            
-            5. **ANALYZE THE SCORES:**
-               - Structure Score: [X]/10
-               - Phrase Score: [X]/10
-               - Sentence length: Actual vs Target
-               - Sentences per paragraph: Actual vs Target
-               - Signature phrases used: [list]
-            
-            === ITERATION 2 (IF STRUCTURE_SCORE < 8.0): TARGETED REFINEMENT ===
-            6. **IDENTIFY SPECIFIC ISSUES:**
-               Example issues:
-               - "Avg sentence length is 22 words, target is 15 → sentences too long"
-               - "Only used 1 signature phrase, need 3-5"
-               - "Paragraphs have 7 sentences, target is 3-5"
-            
-            7. **FIX ONLY THOSE ISSUES:**
-               - Rewrite long sentences to be shorter
-               - Add 2-3 more signature phrases naturally
-               - Break up dense paragraphs
-               - KEEP what's working well (don't start over)
-            
-            8. **RE-SCORE YOUR REVISED DRAFT:**
-               Call score_content tool again
-            
-            === ITERATION 3 (IF STILL < 8.0): FINAL POLISH ===
-            9. Make final targeted adjustments
-            10. Final scoring
-            
-            === OUTPUT FORMAT ===
-            
-            [ITERATION LOG]
-            Iteration 1: Score X.X - Issues: [list]
-            Iteration 2: Score X.X - Improvements: [what you fixed]
-            Iteration 3: Score X.X - Final adjustments: [if needed]
-            [/ITERATION LOG]
+            **OUTPUT:**
             
             [FINAL CONTENT]
-            <Your polished content here - do NOT include any metadata or scores in this section>
+            <Your content - no metadata here>
             [/FINAL CONTENT]
             
             [METADATA]
             {
                 "creative_angle": "Brief description",
-                "total_iterations": X,
-                "final_structure_score": X.X,
-                "final_phrase_score": X.X,
-                "target_metrics_met": true/false
+                "iteration": 1
             }
             [/METADATA]
+            """
+        else:
+            # Subsequent iterations: revise based on feedback
+            writer_backstory = f"""You are a Brand Voice Mimic with revision capabilities.
             
-            **CRITICAL RULES:**
-            1. You MUST call score_content at least once (after initial draft)
-            2. If score < 8.0, you MUST revise and re-score
-            3. Maximum 3 iterations (diminishing returns after that)
-            4. Show your iteration log (transparency = trust)
-            5. The [FINAL CONTENT] section should contain ONLY the content, no extra text
-            """,
-            agent=writer_agent,
-            context=[research_task, creative_strategy_task, brand_analysis_task],
-            expected_output="Polished content with structure_score >= 8.0 and iteration log"
+            **FEW-SHOT TRAINING:**
+            {self.few_shot_examples}
+            
+            You've received specific feedback on your previous attempt.
+            Your job: Fix ONLY the identified issues while keeping what works.
+            """
+            
+            writer_description = """Revise your previous content based on critic feedback.
+
+            **PREVIOUS ATTEMPT:**
+            {previous_content}
+            
+            **FEEDBACK TO ADDRESS:**
+            {feedback}
+            
+            **REVISION RULES:**
+            1. Fix ONLY the specific issues mentioned
+            2. Keep elements that were marked as "working well"
+            3. Do NOT start from scratch
+            4. Maintain the creative angle
+            
+            **OUTPUT:**
+            
+            [FINAL CONTENT]
+            <Your revised content - no metadata here>
+            [/FINAL CONTENT]
+            
+            [METADATA]
+            {
+                "creative_angle": "Same as before",
+                "iteration": """ + str(iteration_num) + """
+            }
+            [/METADATA]
+            """
+        
+        writer_agent = Agent(
+            role="Brand Voice Writer",
+            goal="Write or revise content to match brand metrics and creative strategy",
+            backstory=writer_backstory,
+            tools=[self.kb_tool, self.metrics_tool],
+            llm=self.creative_llm,
+            verbose=True,
         )
         
-        # ===== AGENT 5: VALIDATOR (SIMPLIFIED REVIEWER) =====
+        writer_task = Task(
+            description=writer_description,
+            agent=writer_agent,
+            expected_output="Content with metadata"
+        )
+        
+        return Crew(
+            agents=[writer_agent],
+            tasks=[writer_task],
+            process=Process.sequential,
+            verbose=True,
+        )
+    
+    def create_critic_crew(self) -> Crew:
+        """
+        Create critic crew to evaluate content and provide feedback.
+        """
+        
+        critic_agent = Agent(
+            role="Content Quality Critic",
+            goal="Evaluate content against brand metrics and provide specific, actionable feedback",
+            backstory="""You are an objective evaluator who:
+            
+            1. Measures content against concrete metrics
+            2. Identifies specific issues (not vague feedback)
+            3. Recommends targeted fixes
+            4. Notes what's working well (to preserve it)
+            
+            You use the scoring tool to get objective measurements.
+            """,
+            tools=[self.scoring_tool, self.metrics_tool],
+            llm=self.analytical_llm,
+            verbose=True,
+        )
+        
+        critic_task = Task(
+            description="""Evaluate the content and provide structured feedback.
+
+            **CONTENT TO REVIEW:**
+            {content_to_review}
+            
+            **EVALUATION PROCESS:**
+            
+            1. **Score the content:**
+               Call score_content tool: {{"content": "<full content here>"}}
+            
+            2. **Analyze the scores:**
+               - Structure Score: Is it >= 8.0?
+               - Phrase Score: Are signature phrases used?
+               - Sentence/Paragraph: How far from target?
+            
+            3. **Identify specific issues:**
+               Example issues:
+               - "Sentences average 22 words, target is 15 → too long"
+               - "Only 1 signature phrase used, need 3-5"
+               - "Paragraphs have 6 sentences, target is 3-4"
+            
+            4. **Note what's working:**
+               - "Creative angle is engaging"
+               - "Tone matches brand"
+               - "Opening is strong"
+            
+            **OUTPUT (JSON format):**
+            
+            {
+                "decision": "approve" or "revise",
+                "current_score": X.X,
+                "issues": [
+                    "Specific issue 1",
+                    "Specific issue 2"
+                ],
+                "specific_fixes": [
+                    "Break long sentences in paragraphs 2 and 4",
+                    "Add signature phrase 'X' in section Y"
+                ],
+                "what_to_keep": [
+                    "Strong opening hook",
+                    "Good use of examples"
+                ]
+            }
+            
+            **DECISION CRITERIA:**
+            - Approve: structure_score >= 8.0 AND phrase_score >= 6.0
+            - Revise: anything below that
+            """,
+            agent=critic_agent,
+            expected_output="JSON feedback with decision and specific issues"
+        )
+        
+        return Crew(
+            agents=[critic_agent],
+            tasks=[critic_task],
+            process=Process.sequential,
+            verbose=True,
+        )
+    
+    def create_validator_crew(self) -> Crew:
+        """
+        Create validator crew for final quality check.
+        """
+        
         validator_agent = Agent(
-            role="Quality Validator",
-            goal="Validate final content meets all requirements and provide confidence score",
-            backstory="""You are the final checkpoint before content goes to production.
+            role="Final Quality Validator",
+            goal="Provide final confidence score and quality report",
+            backstory="""You are the final checkpoint.
             
-            The writer has already self-corrected using objective metrics. Your job is to:
-            1. Verify the iteration log (did they actually refine?)
-            2. Spot-check key brand elements (tone, perspective)
-            3. Calculate a final confidence score
-            
-            You do NOT reject content - you provide a quality assessment.""",
-            tools=[scoring_tool, kb_tool],
-            llm=analytical_llm,
+            The content has been through iterative refinement.
+            Your job: Verify quality and provide confidence score.
+            """,
+            tools=[self.scoring_tool],
+            llm=self.analytical_llm,
             verbose=True,
         )
         
         validator_task = Task(
-            description="""Validate the final content from the writer.
+            description="""Validate the final content.
 
-            **VALIDATION CHECKLIST:**
+            **FINAL CONTENT:**
+            {final_content}
             
-            1. **Extract Writer's Metadata:**
-               - How many iterations did they do?
-               - What was their final structure_score?
-               - Did they claim to meet target metrics?
+            **ITERATION INFO:**
+            - Total iterations: {iteration_count}
+            - Last score from critic: {final_score_from_critic}
             
-            2. **Independent Verification:**
-               Call score_content tool on the [FINAL CONTENT] section to verify
+            **VALIDATION:**
             
-            3. **Spot-Check Brand Alignment:**
-               - Does the tone match the brand blueprint?
-               - Are signature phrases used naturally (not forced)?
-               - Is the creative angle actually fresh?
+            1. **Independent verification:**
+               Call score_content tool on the final content
             
-            4. **Calculate Confidence Score:**
-               CONFIDENCE = (verified_structure_score × 0.4) + 
-                          (tone_alignment × 0.3) + 
-                          (creative_freshness × 0.3)
+            2. **Calculate confidence:**
+               confidence = (verified_structure_score × 0.6) + (phrase_score × 0.4)
             
-            5. **Output Structured Assessment:**
+            3. **Output assessment:**
             
             {
-                "validation_status": "PASSED" / "PASSED_WITH_NOTES" / "NEEDS_ATTENTION",
+                "validation_status": "PASSED",
                 "verified_structure_score": X.X,
+                "verified_phrase_score": X.X,
                 "confidence_score": X.X,
                 "iteration_count": X,
-                "quality_notes": "Brief assessment of what's working well",
-                "improvement_opportunities": "Minor suggestions if any",
-                "creative_angle": "What angle was used",
-                "generated_content": "<EXACT copy of the [FINAL CONTENT] section from writer>",
-                "final_score": X.X  // This is your confidence_score
+                "creative_angle": "Extract from content context",
+                "generated_content": "<EXACT copy of final_content>",
+                "final_score": X.X
             }
             
-            **CRITICAL:**
-            - Copy the [FINAL CONTENT] EXACTLY as written (no modifications)
-            - If structure_score >= 8.0, status should be "PASSED"
-            - If 7.0-7.9, status can be "PASSED_WITH_NOTES"
-            - You are NOT a gatekeeper - you're a quality reporter
+            **CRITICAL:** Copy the final_content EXACTLY. Do not modify.
             """,
             agent=validator_agent,
-            context=[writer_task, brand_analysis_task],
             expected_output="JSON validation report with final content"
         )
         
         return Crew(
-            agents=[
-                researcher_agent, 
-                creative_strategist, 
-                brand_analyst, 
-                writer_agent, 
-                validator_agent
-            ],
-            tasks=[
-                research_task, 
-                creative_strategy_task, 
-                brand_analysis_task, 
-                writer_task, 
-                validator_task
-            ],
+            agents=[validator_agent],
+            tasks=[validator_task],
             process=Process.sequential,
             verbose=True,
-        )
+        )# ===== UPDATE GENERATION WITH HUMAN FEEDBACK =====
 
-# ===== FACTORY FUNCTION =====
-
-def get_crew(business_id: str = "default", topic: str = "AI Agents", 
-             format_type: str = "Blog Article", voice: str = "formal",
-             previous_feedback: str = None) -> tuple:
-    """
-    Create a crew with all components.
-    
-    Returns: (crew, kb, learning_memory, metrics_analyzer)
-    """
-    logger.info("Initializing crew", 
-                business_id=business_id, 
-                topic=topic, 
-                format=format_type,
-                voice=voice,
-                has_feedback=bool(previous_feedback))
-
-    load_dotenv()
-    
-    # Determine content type
-    if "blog" in format_type.lower():
-        content_type = "blog"
-    elif "social" in format_type.lower():
-        content_type = "social"
-    elif "ad" in format_type.lower() or "advertisement" in format_type.lower():
-        content_type = "ad"
-    else:
-        content_type = "blog"
-    
-    kb = BrandVoiceKnowledgeBase()
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    reraise=True
+)
+def update_generation_with_human_feedback(generation_id: str, 
+                                         business_id: str,
+                                         human_approved: bool, 
+                                         human_score: float,
+                                         human_feedback: str) -> bool:
+    """Update existing learning with human feedback"""
     learning_memory = BrandLearningMemory(business_id=business_id)
-    metrics_analyzer = BrandMetricsAnalyzer(business_id=business_id, content_type=content_type)
     
-    factory = ContentCrewFactory(
-        kb=kb,
-        tavily_search=tavily_search,
-        learning_memory=learning_memory,
-        metrics_analyzer=metrics_analyzer,
-        business_id=business_id
+    success = learning_memory.update_with_human_feedback(
+        generation_id=generation_id,
+        human_approved=human_approved,
+        human_score=human_score,
+        human_feedback=human_feedback
     )
     
-    crew = factory.create_crew(previous_feedback=previous_feedback)
-    return crew, kb, learning_memory, metrics_analyzer
+    if success:
+        content_type = "blog"
+        stats = learning_memory.get_learning_stats(content_type)
+        
+        logger.info(f"Human feedback saved for {generation_id}")
+        logger.info(f"Agent Accuracy: {stats.get('agent_accuracy', 0):.1f}%")
+        logger.info(f"Approval Rate: {stats.get('approval_rate', 0):.1f}%")
+    else:
+        logger.warning(f"Generation {generation_id} not found")
+    
+    return success
 
+
+# ===== BACKWARD COMPATIBILITY WRAPPER =====
+
+def run_generation_with_learning(business_id: str, topic: str, 
+                                 format_type: str, voice: str) -> Tuple[Dict[str, Any], str]:
+    """
+    Backward compatibility wrapper - calls run_iterative_generation.
+    
+    This ensures existing code that calls run_generation_with_learning still works.
+    """
+    logger.info("run_generation_with_learning called - routing to run_iterative_generation")
+    return run_iterative_generation(business_id, topic, format_type, voice)
+
+
+# ===== VERIFICATION AND HELPER FUNCTIONS =====
 
 def verify_learning_loop(business_id: str, content_type: str = "blog"):
     """Debug function to check if learning system is working"""
@@ -2475,10 +2585,59 @@ def verify_learning_loop(business_id: str, content_type: str = "blog"):
     return stats
 
 
+# ===== FACTORY FUNCTION =====
+
+def get_crew(business_id: str = "default", topic: str = "AI Agents", 
+             format_type: str = "Blog Article", voice: str = "formal",
+             previous_feedback: str = None) -> tuple:
+    """
+    Create a crew with all components.
+    
+    NOTE: This is for backward compatibility. The new iterative system
+    creates crews dynamically per iteration.
+    
+    Returns: (crew, kb, learning_memory, metrics_analyzer)
+    """
+    logger.info("get_crew called - NOTE: Iterative system uses dynamic crew creation", 
+                business_id=business_id, 
+                topic=topic, 
+                format=format_type,
+                voice=voice,
+                has_feedback=bool(previous_feedback))
+
+    load_dotenv()
+    
+    # Determine content type
+    if "blog" in format_type.lower():
+        content_type = "blog"
+    elif "social" in format_type.lower():
+        content_type = "social"
+    elif "ad" in format_type.lower() or "advertisement" in format_type.lower():
+        content_type = "ad"
+    else:
+        content_type = "blog"
+    
+    kb = BrandVoiceKnowledgeBase()
+    learning_memory = BrandLearningMemory(business_id=business_id)
+    metrics_analyzer = BrandMetricsAnalyzer(business_id=business_id, content_type=content_type)
+    
+    factory = ContentCrewFactory(
+        kb=kb,
+        tavily_search=tavily_search,
+        learning_memory=learning_memory,
+        metrics_analyzer=metrics_analyzer,
+        business_id=business_id
+    )
+    
+    # Return base crew for compatibility
+    crew = factory.create_base_crew()
+    return crew, kb, learning_memory, metrics_analyzer
+
+
 # ===== CLI ENTRY POINT =====
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate brand-aligned marketing content")
+    parser = argparse.ArgumentParser(description="Generate brand-aligned marketing content with iterative refinement")
     
     parser.add_argument("--topic", default="AI Agents", help="Content topic")
     parser.add_argument("--format", default="Blog Article", help="Content format")
@@ -2517,7 +2676,7 @@ if __name__ == "__main__":
         exit(0)
     
     # Default: Generate content
-    print(f"\nStarting Content Generation")
+    print(f"\nStarting Iterative Content Generation")
     print(f"Topic: {args.topic}")
     print(f"Format: {args.format}")
     print(f"Business: {args.business_id}")
@@ -2532,8 +2691,10 @@ if __name__ == "__main__":
     print(learning_memory.get_learning_summary(content_type))
     print("="*60 + "\n")
     
-    # Generate
-    result, generation_id = run_generation_with_learning(
+    # Generate with iterative refinement
+    print("\n🔄 Starting iterative generation (up to 3 iterations)...\n")
+    
+    result, generation_id = run_iterative_generation(
         business_id=args.business_id,
         topic=args.topic,
         format_type=args.format,
@@ -2543,7 +2704,30 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("GENERATION COMPLETE")
     print("="*60)
-    print(result)
+    print(f"\n📝 CONTENT:\n")
+    print(result['content'])
     print("\n" + "="*60)
     print(f"Generation ID: {generation_id}")
+    print(f"Final Score: {result['auto_score']:.1f}/10")
+    print(f"Creative Angle: {result['creative_angle']}")
+    print(f"Iterations Used: {result['iteration_count']}")
+    
+    if result.get('iteration_history'):
+        print("\n📊 ITERATION HISTORY:")
+        for iteration_info in result['iteration_history']:
+            print(f"  Iteration {iteration_info['iteration']}: "
+                  f"Score={iteration_info['score']:.1f}, "
+                  f"Decision={iteration_info['decision']}, "
+                  f"Issues={len(iteration_info.get('issues', []))}")
+    
     print("="*60)
+    
+    # Offer to add feedback
+    print("\n💬 To provide feedback on this generation, run:")
+    print(f"python deployer.py --add-feedback \\")
+    print(f"  --generation-id {generation_id} \\")
+    print(f"  --business_id {args.business_id} \\")
+    print(f"  --approved yes \\")
+    print(f"  --score 9.0 \\")
+    print(f"  --feedback 'Great work!'")
+    print()
