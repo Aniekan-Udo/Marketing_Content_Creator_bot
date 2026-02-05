@@ -2297,7 +2297,6 @@ class ContentCrewFactory:
             OUTPUT THE COMPLETE CONTENT"""
 
         if previous_feedback:
-            # Clean text-only alert - NO EMOJIS
             writer_task_desc += f"\n\n[REVISION ALERT]\nYour previous draft was REJECTED. Fix these specific issues:\n{previous_feedback}"
 
         writer_task = Task(
@@ -2407,12 +2406,20 @@ class ContentCrewFactory:
 # ===== FACTORY FUNCTION =====
 
 def get_crew(business_id: str = "default", topic: str = "AI Agents", 
-             format_type: str = "Blog Article", voice: str = "formal") -> tuple:
+             format_type: str = "Blog Article", voice: str = "formal",
+             previous_feedback: str = None) -> tuple:
     """
     Create a crew with all components.
     
     Returns: (crew, kb, learning_memory, metrics_analyzer)
     """
+    logger.info("Initializing crew", 
+                business_id=business_id, 
+                topic=topic, 
+                format=format_type,
+                voice=voice,
+                has_feedback=bool(previous_feedback))
+
     load_dotenv()
     
     # Determine content type
@@ -2437,7 +2444,7 @@ def get_crew(business_id: str = "default", topic: str = "AI Agents",
         business_id=business_id
     )
     
-    crew = factory.create_crew()
+    crew = factory.create_crew(previous_feedback=previous_feedback)
     return crew, kb, learning_memory, metrics_analyzer
 
 
