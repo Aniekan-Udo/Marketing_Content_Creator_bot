@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -27,39 +28,12 @@
               800: '#075985',
               900: '#0c4a6e'
             },
-            success: {
-              50: '#f0fdf4',
-              100: '#dcfce7',
-              500: '#22c55e',
-              600: '#16a34a'
-            },
-            warning: {
-              50: '#fffbeb',
-              100: '#fef3c7',
-              500: '#f59e0b',
-              600: '#d97706'
-            },
-            critical: {
-              50: '#fef2f2',
-              100: '#fee2e2',
-              500: '#ef4444',
-              600: '#dc2626'
-            },
-            brand: {
-              formal: '#6366f1',
-              casual: '#8b5cf6',
-              technical: '#0d9488',
-              playful: '#ec4899'
-            },
-            surface: {
-              light: '#ffffff',
-              dark: '#0f172a',
-              card: '#f8fafc',
-              cardDark: '#1e293b'
-            }
-          },
-          boxShadow: {
-            glow: '0 0 12px rgba(14, 165, 233, 0.25)'
+            accent: '#e8f54e',
+            accent2: '#4ef5a0',
+            bg: '#0a0a0a',
+            surface: '#111111',
+            surface2: '#181818',
+            border: '#333333'
           }
         }
       }
@@ -67,26 +41,24 @@
   </script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    body { 
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
-      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-      background-size: 400% 400%;
-      animation: gradientBG 15s ease infinite;
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0a0a0a;
+      color: #fafafa;
     }
-    @keyframes gradientBG {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
+
     .agent-card {
       transition: all 0.3s ease;
       border-radius: 16px;
       overflow: hidden;
     }
+
     .agent-card:hover {
       transform: translateY(-4px);
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
     }
+
     .status-dot {
       display: inline-block;
       width: 8px;
@@ -94,14 +66,25 @@
       border-radius: 50%;
       margin-right: 6px;
     }
+
     .pulse {
       animation: pulse 2s infinite;
     }
+
     @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4); }
-      70% { box-shadow: 0 0 0 10px rgba(14, 165, 233, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+      0% {
+        box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4);
+      }
+
+      70% {
+        box-shadow: 0 0 0 10px rgba(14, 165, 233, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(14, 165, 233, 0);
+      }
     }
+
     .badge {
       display: inline-block;
       padding: 0.25rem 0.75rem;
@@ -109,54 +92,52 @@
       font-size: 0.75rem;
       font-weight: 600;
     }
+
     .badge-success {
-      background-color: #dcfce7;
-      color: #16a34a;
+      background-color: rgba(78, 245, 160, 0.1);
+      color: #4ef5a0;
     }
+
     .badge-warning {
       background-color: #fef3c7;
       color: #d97706;
     }
+
     .badge-info {
       background-color: #dbeafe;
       color: #0284c7;
     }
   </style>
 </head>
-<body class="text-gray-800 dark:text-gray-100 min-h-screen"><!-- Header -->
-  <header class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
+
+<body class="bg-[#0a0a0a] text-[#fafafa] min-h-screen">
+  <!-- Header -->
+  <header class="bg-surface/80 backdrop-blur-md border-b border-border sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
         <!-- Logo -->
         <div class="flex items-center space-x-3">
-          <div class="relative">
-            <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg">
-              <span class="text-white font-bold text-lg">BG</span>
-              <div class="absolute -top-1 -right-1 w-3 h-3 bg-success-500 rounded-full border-2 border-white"></div>
-            </div>
-          </div>
-          <div>
-            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-800">
-              Brand<span class="text-primary-600">Guard</span> AI
-            </h1>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Precision content, perfected</p>
+          <div class="logo text-xl font-bold" style="font-family: 'DM Sans', sans-serif;">
+            Brand<span class="text-accent">Guard</span> AI
           </div>
         </div>
 
         <!-- Nav & Actions -->
         <div class="flex items-center space-x-4">
-          <nav class="hidden md:flex space-x-6">
-            <a href="#" class="font-medium text-primary-600">Dashboard</a>
-            <a href="/feedback" class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 flex items-center">
-              <i class="fas fa-comments mr-1.5"></i> Feedback
+          <nav class="hidden md:flex space-x-8">
+            <a href="#" class="text-sm font-medium text-accent hover:text-white transition-colors">Dashboard</a>
+            <a href="/feedback"
+              class="text-sm font-medium text-gray-400 hover:text-white flex items-center transition-colors">
+              <i class="fas fa-comments mr-2 text-xs"></i> Feedback
             </a>
-            <a href="#" class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200">Style Guide</a>
           </nav>
-          <button class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl font-medium flex items-center transition-all shadow-md hover:shadow-lg">
+          <button
+            class="bg-accent hover:bg-white text-bg px-5 py-2 rounded-sm font-bold text-xs uppercase tracking-wider transition-all shadow-lg">
             <i class="fas fa-magic mr-2"></i> New Request
           </button>
-          <button id="theme-toggle" class="p-2.5 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-            <i class="fas fa-moon text-gray-600 dark:text-gray-300"></i>
+          <button onclick="logout()"
+            class="px-4 py-2 rounded-sm font-bold text-xs uppercase tracking-wider transition-all border border-border text-gray-400 hover:text-white hover:border-gray-500">
+            <i class="fas fa-sign-out-alt mr-2"></i> Logout
           </button>
         </div>
       </div>
@@ -173,7 +154,7 @@
         Your CrewAI agents research, write, and review — all while enforcing your brand voice with surgical precision.
       </p>
 
-      
+
       <!-- Learning Stats Badge -->
       <div class="mt-6 flex justify-center space-x-4" id="learningStatsBadges">
         <div class="badge badge-info">
@@ -181,42 +162,40 @@
         </div>
       </div>
     </div><!-- KB Upload Section -->
-    <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 p-6 rounded-2xl border border-emerald-200 dark:border-emerald-800/30 mb-8">
-      <h3 class="text-xl font-bold text-emerald-800 dark:text-emerald-200 mb-4 flex items-center">
-        <i class="fas fa-upload mr-2"></i> Upload Brand Documents
+    <div class="bg-surface2 p-8 rounded-sm border border-border mb-12">
+      <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center">
+        <i class="fas fa-upload mr-3 text-accent2"></i> Upload Brand Knowledge
       </h3>
       <form id="kbUpload" enctype="multipart/form-data" class="space-y-3">
         <!-- Business ID Input -->
         <div>
-          <label class="block text-sm font-medium text-emerald-800 dark:text-emerald-200 mb-2">
-            <i class="fas fa-building mr-1"></i> Business ID
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-tighter mb-2">
+            Business ID
           </label>
-          <input type="text" 
-                 name="business_id" 
-                 id="businessIdInput"
-                 placeholder="e.g., BAND_Foods, tech_startup" 
-                 value=""
-                 class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
-          <p class="text-xs text-emerald-700 dark:text-emerald-300 mt-1">Unique identifier for your brand's knowledge base</p>
+          <input type="text" name="business_id" id="businessIdInput" placeholder="e.g., my_brand" value=""
+            class="w-full px-4 py-3 bg-surface border border-border rounded-sm text-sm focus:border-accent2 transition-all outline-none">
         </div>
-        
-        <select name="content_type" class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+
+        <select name="content_type"
+          class="w-full px-4 py-3 bg-surface border border-border rounded-sm text-sm focus:border-accent2 transition-all outline-none">
           <option value="blog">Blog Examples</option>
           <option value="social">Social Media Posts</option>
           <option value="ad">Ad Copy Samples</option>
         </select>
-        
+
         <input type="file" name="files" id="fileInput" multiple accept=".txt,.md,.docx,.pdf"
-               class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
-        
+          class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+
         <div id="filePreview" class="text-xs text-emerald-700 dark:text-emerald-300 hidden mt-1"></div>
-        
+
         <div class="flex space-x-3">
-          <button type="submit" class="flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all">
+          <button type="submit"
+            class="flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all">
             <i class="fas fa-cloud-upload-alt mr-2"></i> Build Knowledge Base
           </button>
-          <button type="button" id="refreshMetricsBtn" class="px-6 py-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl font-semibold shadow-sm hover:shadow-md transition-all border border-emerald-200">
-             <i class="fas fa-sync-alt mr-2"></i> Refresh Metrics
+          <button type="button" id="refreshMetricsBtn"
+            class="px-6 py-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl font-semibold shadow-sm hover:shadow-md transition-all border border-emerald-200">
+            <i class="fas fa-sync-alt mr-2"></i> Refresh Metrics
           </button>
         </div>
       </form>
@@ -224,198 +203,182 @@
     </div>
 
     <!-- Request Card -->
-    <div class="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl p-6 mb-12">
-      <div class="flex flex-col md:flex-row md:items-center justify-between">
+    <div class="bg-surface p-8 rounded-sm border border-border shadow-2xl mb-12">
+      <div class="flex flex-col md:flex-row md:items-center justify-between mb-8">
         <div>
-          <h3 class="text-xl font-bold text-gray-900 dark:text-white">🚀 Generate Brand-Aligned Content</h3>
-          <p class="text-gray-600 dark:text-gray-400 mt-1">Powered by your knowledge base & 2026 research</p>
+          <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest">
+            <i class="fas fa-magic mr-3 text-accent"></i> Generate Content
+          </h3>
+          <p class="text-xs text-gray-500 mt-2">Powered by Brand Knowledge & RAG</p>
         </div>
-        <div class="mt-4 md:mt-0 flex space-x-3">
+        <div class="mt-4 md:mt-0 flex space-x-6">
           <div class="flex items-center">
-            <span class="status-dot bg-success-500"></span>
-            <span class="text-sm font-medium text-success-700 dark:text-success-400" id="kbStatusIndicator">KB Ready</span>
+            <span class="status-dot bg-accent2"></span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400">KB Ready</span>
           </div>
           <div class="flex items-center">
-            <span class="status-dot bg-primary-500"></span>
-            <span class="text-sm font-medium text-primary-700 dark:text-primary-400">Agents Ready</span>
+            <span class="status-dot bg-accent"></span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Agents Ready</span>
           </div>
         </div>
       </div>
 
-      <div class="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Topic</label>
-          <input id="topicInput" type="text" value="healthy dieting" 
-            class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all">
+          <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-tighter mb-2">Topic</label>
+          <input id="topicInput" type="text" value="growth strategies"
+            class="w-full px-4 py-3 bg-surface2 border border-border rounded-sm text-sm focus:border-accent transition-all outline-none">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Format</label>
-          <select id="formatSelect" class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500">
+          <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-tighter mb-2">Format</label>
+          <select id="formatSelect"
+            class="w-full px-4 py-3 bg-surface2 border border-border rounded-sm text-sm focus:border-accent outline-none">
             <option>Blog Article</option>
             <option>Social</option>
             <option>Ad</option>
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Voice</label>
+          <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-tighter mb-2">Voice</label>
           <div class="grid grid-cols-2 gap-2">
-            <button type="button" id="voiceFormal" class="px-3 py-2 bg-brand-formal/20 text-brand-formal rounded-lg text-sm font-medium hover:bg-brand-formal/30 transition-colors ring-2 ring-brand-formal/50">
-              <i class="fas fa-university mr-1"></i> Formal
+            <button type="button" id="voiceFormal"
+              class="px-3 py-2 bg-accent/10 text-accent border border-accent/30 rounded-sm text-[10px] font-bold uppercase tracking-widest hover:bg-accent/20 transition-colors">
+              Formal
             </button>
-            <button type="button" id="voiceTechnical" class="px-3 py-2 bg-brand-technical/10 text-brand-technical rounded-lg text-sm font-medium hover:bg-brand-technical/20 transition-colors">
-              <i class="fas fa-microchip mr-1"></i> Technical
+            <button type="button" id="voiceTechnical"
+              class="px-3 py-2 bg-gray-800 text-gray-400 border border-border rounded-sm text-[10px] font-bold uppercase tracking-widest hover:bg-gray-700 transition-colors">
+              Technical
             </button>
           </div>
         </div>
         <div class="flex items-end">
-          <button id="generateBtn" class="w-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center">
-            <i class="fas fa-play-circle mr-2"></i> Generate
+          <button id="generateBtn"
+            class="w-full bg-accent hover:bg-white text-bg font-bold text-xs uppercase tracking-widest py-3 px-4 rounded-sm shadow-xl transition-all">
+            <i class="fas fa-play-circle mr-2"></i> Run Pipeline
           </button>
         </div>
       </div>
     </div><!-- Agent Workflow -->
-    <div class="mb-12">
-      <div class="flex items-center justify-between mb-6">
-        <h3 class="text-2xl font-bold text-gray-900 dark:text-white">
-          <i class="fas fa-users mr-2 text-primary-500"></i> Your AI Crew in Action
+    <div class="mb-16">
+      <div class="flex items-center justify-between mb-8">
+        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">
+          <i class="fas fa-users mr-3 text-accent2"></i> Agent Pipeline Status
         </h3>
-        <div class="text-sm bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300 px-3 py-1 rounded-full font-medium">
-          Sequential Mode • 5 Agents
+        <div
+          class="text-[10px] font-bold uppercase tracking-widest text-accent border border-accent/20 px-3 py-1 rounded-sm">
+          Sequential Operation
         </div>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <!-- Researcher -->
-        <div class="agent-card border border-primary-200 dark:border-primary-800/50" id="researcherCard">
-          <div class="bg-gradient-to-r from-primary-500 to-primary-600 p-4 text-white">
-            <div class="flex justify-between items-start">
-              <div>
-                <h4 class="font-bold text-base flex items-center">
-                  <i class="fas fa-search mr-2 text-sm"></i> Research
-                </h4>
-                <p class="text-primary-100 mt-1 text-xs">2026 insights</p>
-              </div>
-              <span class="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">1</span>
+        <div class="agent-card bg-surface2 border border-border rounded-sm overflow-hidden" id="researcherCard">
+          <div class="p-5 border-b border-border bg-surface/50">
+            <div class="flex justify-between items-center">
+              <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-300"> Research • 1</h4>
+              <i class="fas fa-search text-xs text-accent"></i>
             </div>
           </div>
-          <div class="bg-white dark:bg-gray-800 p-4">
-            <div class="flex items-center mb-2">
-              <span class="status-dot bg-gray-400" id="researcherDot"></span>
-              <span class="font-medium text-sm text-gray-500 dark:text-gray-400" id="researcherStatus">Idle</span>
+          <div class="p-5">
+            <div class="flex items-center">
+              <span class="status-dot bg-gray-600" id="researcherDot"></span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500"
+                id="researcherStatus">Standby</span>
             </div>
           </div>
         </div>
 
         <!-- Strategist -->
-        <div class="agent-card border border-purple-200 dark:border-purple-800/50" id="strategistCard">
-          <div class="bg-gradient-to-r from-purple-500 to-purple-600 p-4 text-white">
-            <div class="flex justify-between items-start">
-              <div>
-                <h4 class="font-bold text-base flex items-center">
-                  <i class="fas fa-lightbulb mr-2 text-sm"></i> Creative
-                </h4>
-                <p class="text-purple-100 mt-1 text-xs">Fresh angles</p>
-              </div>
-              <span class="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">2</span>
+        <div class="agent-card bg-surface2 border border-border rounded-sm overflow-hidden" id="strategistCard">
+          <div class="p-5 border-b border-border bg-surface/50">
+            <div class="flex justify-between items-center">
+              <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-300"> Creative • 2</h4>
+              <i class="fas fa-lightbulb text-xs text-accent2"></i>
             </div>
           </div>
-          <div class="bg-white dark:bg-gray-800 p-4">
-            <div class="flex items-center mb-2">
-              <span class="status-dot bg-gray-400" id="strategistDot"></span>
-              <span class="font-medium text-sm text-gray-500 dark:text-gray-400" id="strategistStatus">Waiting</span>
+          <div class="p-5">
+            <div class="flex items-center">
+              <span class="status-dot bg-gray-600" id="strategistDot"></span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500"
+                id="strategistStatus">Waiting</span>
             </div>
           </div>
         </div>
 
         <!-- Analyst -->
-        <div class="agent-card border border-cyan-200 dark:border-cyan-800/50" id="analystCard">
-          <div class="bg-gradient-to-r from-cyan-500 to-cyan-600 p-4 text-white">
-            <div class="flex justify-between items-start">
-              <div>
-                <h4 class="font-bold text-base flex items-center">
-                  <i class="fas fa-chart-bar mr-2 text-sm"></i> Analyst
-                </h4>
-                <p class="text-cyan-100 mt-1 text-xs">Brand metrics</p>
-              </div>
-              <span class="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">3</span>
+        <div class="agent-card bg-surface2 border border-border rounded-sm overflow-hidden" id="analystCard">
+          <div class="p-5 border-b border-border bg-surface/50">
+            <div class="flex justify-between items-center">
+              <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-300"> Analyst • 3</h4>
+              <i class="fas fa-chart-bar text-xs text-accent"></i>
             </div>
           </div>
-          <div class="bg-white dark:bg-gray-800 p-4">
-            <div class="flex items-center mb-2">
-              <span class="status-dot bg-gray-400" id="analystDot"></span>
-              <span class="font-medium text-sm text-gray-500 dark:text-gray-400" id="analystStatus">Waiting</span>
+          <div class="p-5">
+            <div class="flex items-center">
+              <span class="status-dot bg-gray-600" id="analystDot"></span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500"
+                id="analystStatus">Waiting</span>
             </div>
           </div>
         </div>
 
         <!-- Writer -->
-        <div class="agent-card border border-brand-formal/30 dark:border-brand-formal/20" id="writerCard">
-          <div class="bg-gradient-to-r from-brand-formal to-indigo-700 p-4 text-white">
-            <div class="flex justify-between items-start">
-              <div>
-                <h4 class="font-bold text-base flex items-center">
-                  <i class="fas fa-feather-alt mr-2 text-sm"></i> Writer
-                </h4>
-                <p class="text-indigo-100 mt-1 text-xs">Brand voice</p>
-              </div>
-              <span class="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">4</span>
+        <div class="agent-card bg-surface2 border border-border rounded-sm overflow-hidden" id="writerCard">
+          <div class="p-5 border-b border-border bg-surface/50">
+            <div class="flex justify-between items-center">
+              <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-300"> Writer • 4</h4>
+              <i class="fas fa-feather-alt text-xs text-accent2"></i>
             </div>
           </div>
-          <div class="bg-white dark:bg-gray-800 p-4">
-            <div class="flex items-center mb-2">
-              <span class="status-dot bg-gray-400" id="writerDot"></span>
-              <span class="font-medium text-sm text-gray-500 dark:text-gray-400" id="writerStatus">Waiting</span>
+          <div class="p-5">
+            <div class="flex items-center mb-4">
+              <span class="status-dot bg-gray-600" id="writerDot"></span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500"
+                id="writerStatus">Waiting</span>
             </div>
-            <div class="mt-2">
-              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                <div class="bg-gradient-to-r from-primary-400 to-primary-600 h-1.5 rounded-full" style="width: 0%" id="writerProgress"></div>
-              </div>
+            <div class="w-full bg-border rounded-full h-[2px]">
+              <div class="bg-accent2 h-[2px] rounded-full transition-all duration-500" style="width: 0%"
+                id="writerProgress"></div>
             </div>
           </div>
         </div>
 
         <!-- Reviewer -->
-        <div class="agent-card border border-warning-200 dark:border-warning-800/50" id="reviewerCard">
-          <div class="bg-gradient-to-r from-warning-500 to-amber-600 p-4 text-white">
-            <div class="flex justify-between items-start">
-              <div>
-                <h4 class="font-bold text-base flex items-center">
-                  <i class="fas fa-shield-alt mr-2 text-sm"></i> Reviewer
-                </h4>
-                <p class="text-amber-100 mt-1 text-xs">Quality gate</p>
-              </div>
-              <span class="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">5</span>
+        <div class="agent-card bg-surface2 border border-border rounded-sm overflow-hidden" id="reviewerCard">
+          <div class="p-5 border-b border-border bg-surface/50">
+            <div class="flex justify-between items-center">
+              <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-300"> Review • 5</h4>
+              <i class="fas fa-shield-alt text-xs text-accent"></i>
             </div>
           </div>
-          <div class="bg-white dark:bg-gray-800 p-4">
-            <div class="flex items-center mb-2">
-              <span class="status-dot bg-gray-400" id="reviewerDot"></span>
-              <span class="font-medium text-sm text-gray-500 dark:text-gray-400" id="reviewerStatus">Waiting</span>
+          <div class="p-5">
+            <div class="flex items-center">
+              <span class="status-dot bg-gray-600" id="reviewerDot"></span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500"
+                id="reviewerStatus">Waiting</span>
             </div>
-            <p class="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-2 py-1 rounded mt-2">
-              <i class="fas fa-robot mr-1"></i> Auto + Human
-            </p>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Review Dashboard -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden">
-      <div class="bg-gradient-to-r from-gray-900 to-gray-800 px-6 py-5">
+    <div class="bg-surface rounded-sm border border-border shadow-2xl overflow-hidden">
+      <div class="bg-surface2 border-b border-border px-8 py-6">
         <div class="flex items-center justify-between">
           <div>
-            <h3 class="text-xl font-bold text-white flex items-center">
-              <i class="fas fa-chart-line mr-2"></i> Review Insights
+            <h3 class="text-sm font-bold text-gray-300 uppercase tracking-widest">
+              <i class="fas fa-chart-line mr-3 text-accent2"></i> Review Insights
             </h3>
-            <p class="text-gray-300 mt-1 text-sm">Hybrid scoring: Automatic metrics + LLM judgment</p>
+            <p class="text-xs text-gray-500 mt-2">Automatic Metrics + Reflection Learning Judgment</p>
           </div>
-          <a href="/feedback" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-all text-sm">
-            <i class="fas fa-comments mr-2"></i> View Feedback Queue
+          <a href="/feedback"
+            class="bg-surface border border-border hover:border-gray-500 text-gray-400 hover:text-white px-5 py-2 rounded-sm font-bold text-[10px] uppercase tracking-widest transition-all">
+            Open Feedback Queue
           </a>
         </div>
       </div>
-      
+
       <div class="p-6" id="reviewContent">
         <div class="text-center py-12 text-gray-400">
           <i class="fas fa-hourglass-start text-4xl mb-3"></i>
@@ -425,7 +388,8 @@
     </div>
 
     <!-- Footer -->
-    <footer class="mt-16 pt-8 border-t border-gray-200 dark:border-gray-800 text-center text-gray-500 dark:text-gray-400 text-sm">
+    <footer
+      class="mt-16 pt-8 border-t border-gray-200 dark:border-gray-800 text-center text-gray-500 dark:text-gray-400 text-sm">
       <div class="flex items-center justify-center space-x-4 mb-2">
         <span>BrandGuard AI v2.0</span>
         <span>•</span>
@@ -439,43 +403,77 @@
       </div>
       <p class="text-xs">Powered by CrewAI, LlamaIndex, and Hybrid Reflection Learning</p>
     </footer>
-  </main><script>
-  // ===== GLOBAL STATE =====
-  let currentGenerationId = null;
-  let currentBusinessId = 'BAND_Foods';
-  let currentApproval = null;
-  let currentGeneratedContent = ''; // FIXED: Store content globally for copying
+  </main>
+  <script>
+    // ===== GLOBAL STATE =====
+    let currentGenerationId = null;
+    let currentBusinessId = 'BAND_Foods';
+    let currentApproval = null;
+    let currentGeneratedContent = ''; // FIXED: Store content globally for copying
+    let lastFeedbackText = ''; // Store last feedback for rewrite
 
-  // ===== THEME TOGGLE =====
-  const themeToggle = document.getElementById('theme-toggle');
-  const htmlEl = document.documentElement;
-  
-  const savedTheme = localStorage.getItem('theme');
-  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  
-  if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
-    htmlEl.classList.add('dark');
-    themeToggle.innerHTML = '<i class="fas fa-sun text-yellow-400"></i>';
-  }
-  
-  themeToggle.addEventListener('click', () => {
-    const isDark = htmlEl.classList.toggle('dark');
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-    themeToggle.innerHTML = isDark 
-      ? '<i class="fas fa-sun text-yellow-400"></i>' 
-      : '<i class="fas fa-moon text-gray-600 dark:text-gray-300"></i>';
-  });
+    // ===== AUTH GUARD =====
+    const _token = localStorage.getItem('bg_token');
+    if (!_token) {
+      window.location.href = '/login';
+    }
 
-  // ===== LOAD LEARNING STATS =====
-  async function loadLearningStats() {
-    try {
-      const businessId = document.getElementById('businessIdInput').value.trim() || 'BAND_Foods';
-      const res = await fetch(`/api/learning/${businessId}/stats?content_type=blog`);
-      const stats = await res.json();
-      
-      if (stats.total_feedback > 0) {
-        const badgeContainer = document.getElementById('learningStatsBadges');
-        badgeContainer.innerHTML = `
+    // Helper: authenticated fetch
+    function authFetch(url, options = {}) {
+      const tok = localStorage.getItem('bg_token');
+      options.headers = Object.assign({}, options.headers || {}, {
+        ...(tok ? { 'Authorization': 'Bearer ' + tok } : {})
+      });
+      return fetch(url, options).then(res => {
+        if (res.status === 401) {
+          localStorage.removeItem('bg_token');
+          localStorage.removeItem('bg_business_id');
+          localStorage.removeItem('bg_business_name');
+          window.location.href = '/login';
+          return;
+        }
+        return res;
+      });
+    }
+
+    function logout() {
+      localStorage.removeItem('bg_token');
+      localStorage.removeItem('bg_business_id');
+      localStorage.removeItem('bg_business_name');
+      window.location.href = '/login';
+    }
+
+    // ===== THEME TOGGLE =====
+    const themeToggle = document.getElementById('theme-toggle');
+    const htmlEl = document.documentElement;
+
+    const savedTheme = localStorage.getItem('theme');
+    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
+      htmlEl.classList.add('dark');
+      themeToggle.innerHTML = '<i class="fas fa-sun text-yellow-400"></i>';
+    }
+
+    themeToggle.addEventListener('click', () => {
+      const isDark = htmlEl.classList.toggle('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      themeToggle.innerHTML = isDark
+        ? '<i class="fas fa-sun text-yellow-400"></i>'
+        : '<i class="fas fa-moon text-gray-600 dark:text-gray-300></i>';
+    });
+
+    // ===== LOAD LEARNING STATS =====
+    async function loadLearningStats() {
+      try {
+        const businessId = document.getElementById('businessIdInput').value.trim() || 'BAND_Foods';
+        const res = await authFetch(`/api/learning/${businessId}/stats?content_type=blog`);
+        if (!res) return;
+        const stats = await res.json();
+
+        if (stats.total_feedback > 0) {
+          const badgeContainer = document.getElementById('learningStatsBadges');
+          badgeContainer.innerHTML = `
           <div class="badge badge-success">
             <i class="fas fa-check-circle mr-1"></i> ${stats.approved} Approved
           </div>
@@ -489,296 +487,310 @@
             <i class="fas fa-robot mr-1"></i> ${stats.agent_accuracy}% Accuracy
           </div>
         `;
+        }
+      } catch (e) {
+        console.log('Could not load learning stats:', e);
       }
-    } catch (e) {
-      console.log('Could not load learning stats:', e);
     }
-  }
 
-  document.addEventListener('DOMContentLoaded', loadLearningStats);
+    document.addEventListener('DOMContentLoaded', () => {
+      loadLearningStats();
+      // Auto-fill Business ID from localStorage
+      const savedId = localStorage.getItem('bg_business_id');
+      if (savedId) {
+        const input = document.getElementById('businessIdInput');
+        if (input) {
+          input.value = savedId;
+          currentBusinessId = savedId;
+        }
+      }
+    });
 
-  // ===== KB UPLOAD HANDLER =====
-  const kbForm = document.getElementById('kbUpload');
-  const kbStatus = document.getElementById('kbStatus');
-  const fileInput = document.getElementById('fileInput');
-  const filePreview = document.getElementById('filePreview');
+    // ===== KB UPLOAD HANDLER =====
+    const kbForm = document.getElementById('kbUpload');
+    const kbStatus = document.getElementById('kbStatus');
+    const fileInput = document.getElementById('fileInput');
+    const filePreview = document.getElementById('filePreview');
 
-  fileInput.addEventListener('change', (e) => {
-    const files = e.target.files;
-    if (files.length > 0) {
-      filePreview.classList.remove('hidden');
-      const fileNames = Array.from(files).map(f => f.name).join(', ');
-      filePreview.innerHTML = `📎 ${files.length} file(s) selected: ${fileNames}`;
-    } else {
-      filePreview.classList.add('hidden');
-    }
-  });
+    fileInput.addEventListener('change', (e) => {
+      const files = e.target.files;
+      if (files.length > 0) {
+        filePreview.classList.remove('hidden');
+        const fileNames = Array.from(files).map(f => f.name).join(', ');
+        filePreview.innerHTML = `📎 ${files.length} file(s) selected: ${fileNames}`;
+      } else {
+        filePreview.classList.add('hidden');
+      }
+    });
 
-  kbForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const submitBtn = kbForm.querySelector('button[type="submit"]');
-    const businessIdInput = document.getElementById('businessIdInput');
-    const contentTypeSelect = kbForm.querySelector('select[name="content_type"]');
-    
-    const businessId = businessIdInput.value.trim();
-    currentBusinessId = businessId;
-    
-    if (!businessId) {
-      showKBError('Business ID is required');
-      return;
-    }
-    
-    const files = fileInput.files;
-    if (!files || files.length === 0) {
-      showKBError('Please select at least one file');
-      return;
-    }
-    
-    const formData = new FormData();
-    formData.append('business_id', businessId);
-    formData.append('content_type', contentTypeSelect.value);
-    
-    for (let i = 0; i < files.length; i++) {
-      formData.append('files', files[i]);
-    }
-    
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Uploading...';
-    
-    try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-      });
-      
-      const data = await res.json();
-      
-      if (data.success) {
-        kbStatus.classList.remove('hidden');
-        kbStatus.className = 'mt-4 p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl text-sm';
-        kbStatus.innerHTML = `
+    kbForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const submitBtn = kbForm.querySelector('button[type="submit"]');
+      const businessIdInput = document.getElementById('businessIdInput');
+      const contentTypeSelect = kbForm.querySelector('select[name="content_type"]');
+
+      const businessId = businessIdInput.value.trim();
+      currentBusinessId = businessId;
+
+      if (!businessId) {
+        showKBError('Business ID is required');
+        return;
+      }
+
+      const files = fileInput.files;
+      if (!files || files.length === 0) {
+        showKBError('Please select at least one file');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('business_id', businessId);
+      formData.append('content_type', contentTypeSelect.value);
+
+      for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Uploading...';
+
+      try {
+        const res = await authFetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+        if (!res) return;
+
+        const data = await res.json();
+
+        if (data.success) {
+          kbStatus.classList.remove('hidden');
+          kbStatus.className = 'mt-4 p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl text-sm';
+          kbStatus.innerHTML = `
           <p class="font-semibold text-emerald-800 dark:text-emerald-200">✅ ${data.message}</p>
           <p class="text-emerald-700 dark:text-emerald-300 text-xs mt-1">
             Business: <strong>${data.business_id}</strong> • 
             Files: ${data.files.join(', ')}
           </p>
         `;
-        
-        fileInput.value = '';
-        filePreview.classList.add('hidden');
-      } else {
-        throw new Error(data.error || 'Upload failed');
-      }
-    } catch (err) {
-      console.error('Upload error:', err);
-      showKBError(err.message);
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i> Build Knowledge Base';
-    }
-  });
 
-  function showKBError(message) {
-    kbStatus.classList.remove('hidden');
-    kbStatus.className = 'mt-4 p-3 bg-red-100 dark:bg-red-900/30 rounded-xl text-sm';
-    kbStatus.innerHTML = `
+          fileInput.value = '';
+          filePreview.classList.add('hidden');
+        } else {
+          throw new Error(data.error || 'Upload failed');
+        }
+      } catch (err) {
+        console.error('Upload error:', err);
+        showKBError(err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i> Build Knowledge Base';
+      }
+    });
+
+    function showKBError(message) {
+      kbStatus.classList.remove('hidden');
+      kbStatus.className = 'mt-4 p-3 bg-red-100 dark:bg-red-900/30 rounded-xl text-sm';
+      kbStatus.innerHTML = `
       <p class="font-semibold text-red-800 dark:text-red-200">❌ Error</p>
       <p class="text-red-700 dark:text-red-300 text-xs mt-1">${message}</p>
     `;
-  }
-
-  // ===== REFRESH METRICS HANDLER =====
-  const refreshMetricsBtn = document.getElementById('refreshMetricsBtn');
-  
-  refreshMetricsBtn.addEventListener('click', async () => {
-    const businessId = document.getElementById('businessIdInput').value.trim() || currentBusinessId;
-    
-    if (!businessId) {
-       showKBError('Business ID is required to refresh metrics');
-       return;
     }
 
-    const originalHTML = refreshMetricsBtn.innerHTML;
-    refreshMetricsBtn.disabled = true;
-    refreshMetricsBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Refreshing...';
+    // ===== REFRESH METRICS HANDLER =====
+    const refreshMetricsBtn = document.getElementById('refreshMetricsBtn');
 
-    try {
-      const res = await fetch(`/api/refresh-metrics/${businessId}`, { method: 'POST' });
-      const data = await res.json();
+    refreshMetricsBtn.addEventListener('click', async () => {
+      const businessId = document.getElementById('businessIdInput').value.trim() || currentBusinessId;
 
-      if (data.success) {
-        kbStatus.classList.remove('hidden');
-        kbStatus.className = 'mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl text-sm';
-        kbStatus.innerHTML = `
+      if (!businessId) {
+        showKBError('Business ID is required to refresh metrics');
+        return;
+      }
+
+      const originalHTML = refreshMetricsBtn.innerHTML;
+      refreshMetricsBtn.disabled = true;
+      refreshMetricsBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Refreshing...';
+
+      try {
+        const res = await authFetch(`/api/refresh-metrics/${businessId}`, { method: 'POST' });
+        if (!res) return;
+        const data = await res.json();
+
+        if (data.success) {
+          kbStatus.classList.remove('hidden');
+          kbStatus.className = 'mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl text-sm';
+          kbStatus.innerHTML = `
           <p class="font-semibold text-blue-800 dark:text-blue-200">✅ Metrics Refreshed</p>
           <p class="text-blue-700 dark:text-blue-300 text-xs mt-1">Brand metrics updated for ${businessId}</p>
         `;
-      } else {
-        throw new Error(data.detail || 'Refresh failed');
+        } else {
+          throw new Error(data.detail || 'Refresh failed');
+        }
+      } catch (err) {
+        console.error('Refresh error:', err);
+        showKBError(err.message || 'Failed to refresh metrics');
+      } finally {
+        refreshMetricsBtn.disabled = false;
+        refreshMetricsBtn.innerHTML = originalHTML;
       }
-    } catch (err) {
-      console.error('Refresh error:', err);
-      showKBError(err.message || 'Failed to refresh metrics');
-    } finally {
-      refreshMetricsBtn.disabled = false;
-      refreshMetricsBtn.innerHTML = originalHTML;
-    }
-  });
-
-  // ===== VOICE SELECTION =====
-  let currentVoice = 'formal';
-  const voiceFormal = document.getElementById('voiceFormal');
-  const voiceTechnical = document.getElementById('voiceTechnical');
-  
-  voiceFormal.addEventListener('click', () => {
-    currentVoice = 'formal';
-    voiceFormal.className = 'px-3 py-2 bg-brand-formal/20 text-brand-formal rounded-lg text-sm font-medium hover:bg-brand-formal/30 transition-colors ring-2 ring-brand-formal/50';
-    voiceTechnical.className = 'px-3 py-2 bg-brand-technical/10 text-brand-technical rounded-lg text-sm font-medium hover:bg-brand-technical/20 transition-colors';
-  });
-  
-  voiceTechnical.addEventListener('click', () => {
-    currentVoice = 'technical';
-    voiceTechnical.className = 'px-3 py-2 bg-brand-technical/20 text-brand-technical rounded-lg text-sm font-medium hover:bg-brand-technical/30 transition-colors ring-2 ring-brand-technical/50';
-    voiceFormal.className = 'px-3 py-2 bg-brand-formal/10 text-brand-formal rounded-lg text-sm font-medium hover:bg-brand-formal/20 transition-colors';
-  });// ===== CONTENT GENERATION =====
-  const generateBtn = document.getElementById('generateBtn');
-  const topicInput = document.getElementById('topicInput');
-  const formatSelect = document.getElementById('formatSelect');
-  
-  generateBtn.addEventListener('click', async () => {
-    const businessId = document.getElementById('businessIdInput')?.value?.trim() || 'BAND_Foods';
-    currentBusinessId = businessId;
-    
-    if (!businessId) {
-      alert('Please enter a Business ID first');
-      return;
-    }
-    
-    generateBtn.disabled = true;
-    generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Crew Running...';
-    
-    const payload = {
-      business_id: businessId,
-      topic: topicInput.value || 'healthy dieting',
-      format: formatSelect.value,
-      voice: currentVoice
-    };
-    
-    console.log('🚀 Generating with payload:', payload);
-    
-    resetAgentCards();
-    
-    try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload)
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail || 'Generation failed');
-      }
-      
-      const data = await res.json();
-      console.log('✅ Generation complete:', data);
-      
-      // CRITICAL: Validate data before displaying
-      if (!data.content || data.content.trim() === '') {
-        console.error('❌ Empty content received:', data);
-        throw new Error('Generated content is empty');
-      }
-      
-      console.log(`✅ Content validated: ${data.content.length} chars`);
-      
-      showResult(data);
-      
-    } catch (err) {
-      console.error('❌ Generation error:', err);
-      console.error('Full error:', err.stack);
-      showError({error: err.message, error_type: 'GenerationError'});
-    } finally {
-      resetGenerateBtn();
-    }
-  });
-
-  // ===== AGENT CARDS UI =====
-  function resetAgentCards() {
-    const agents = [
-      {id: 'researcher', color: 'primary', emoji: '🔍'},
-      {id: 'strategist', color: 'purple', emoji: '💡'},
-      {id: 'analyst', color: 'cyan', emoji: '📊'},
-      {id: 'writer', color: 'primary', emoji: '✍️'},
-      {id: 'reviewer', color: 'warning', emoji: '🛡️'}
-    ];
-    
-    agents.forEach((agent, index) => {
-      const dot = document.getElementById(`${agent.id}Dot`);
-      const status = document.getElementById(`${agent.id}Status`);
-      
-      setTimeout(() => {
-        dot.className = `status-dot bg-${agent.color}-500 pulse`;
-        status.className = `font-medium text-sm text-${agent.color}-700 dark:text-${agent.color}-400`;
-        status.textContent = `Running ${agent.emoji}`;
-        
-        setTimeout(() => {
-          dot.className = `status-dot bg-success-500`;
-          status.className = 'font-medium text-sm text-success-700 dark:text-success-400';
-          status.textContent = 'Done ✅';
-        }, 2000);
-      }, index * 1000);
     });
-    
-    const writerProgress = document.getElementById('writerProgress');
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-      progress += 5;
-      writerProgress.style.width = Math.min(progress, 100) + '%';
-      if (progress >= 100) clearInterval(progressInterval);
-    }, 300);
-    
-    document.getElementById('reviewContent').innerHTML = `
+
+    // ===== VOICE SELECTION =====
+    let currentVoice = 'formal';
+    const voiceFormal = document.getElementById('voiceFormal');
+    const voiceTechnical = document.getElementById('voiceTechnical');
+
+    voiceFormal.addEventListener('click', () => {
+      currentVoice = 'formal';
+      voiceFormal.className = 'px-3 py-2 bg-brand-formal/20 text-brand-formal rounded-lg text-sm font-medium hover:bg-brand-formal/30 transition-colors ring-2 ring-brand-formal/50';
+      voiceTechnical.className = 'px-3 py-2 bg-brand-technical/10 text-brand-technical rounded-lg text-sm font-medium hover:bg-brand-technical/20 transition-colors';
+    });
+
+    voiceTechnical.addEventListener('click', () => {
+      currentVoice = 'technical';
+      voiceTechnical.className = 'px-3 py-2 bg-brand-technical/20 text-brand-technical rounded-lg text-sm font-medium hover:bg-brand-technical/30 transition-colors ring-2 ring-brand-technical/50';
+      voiceFormal.className = 'px-3 py-2 bg-brand-formal/10 text-brand-formal rounded-lg text-sm font-medium hover:bg-brand-formal/20 transition-colors';
+    });// ===== CONTENT GENERATION =====
+    const generateBtn = document.getElementById('generateBtn');
+    const topicInput = document.getElementById('topicInput');
+    const formatSelect = document.getElementById('formatSelect');
+
+    generateBtn.addEventListener('click', async () => {
+      const businessId = document.getElementById('businessIdInput')?.value?.trim() || 'BAND_Foods';
+      currentBusinessId = businessId;
+
+      if (!businessId) {
+        alert('Please enter a Business ID first');
+        return;
+      }
+
+      generateBtn.disabled = true;
+      generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Crew Running...';
+
+      const payload = {
+        business_id: businessId,
+        topic: topicInput.value || 'healthy dieting',
+        format: formatSelect.value,
+        voice: currentVoice
+      };
+
+      console.log('🚀 Generating with payload:', payload);
+
+      resetAgentCards();
+
+      try {
+        const res = await authFetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res) return;
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.detail || 'Generation failed');
+        }
+
+        const data = await res.json();
+        console.log('✅ Generation complete:', data);
+
+        // CRITICAL: Validate data before displaying
+        if (!data.content || data.content.trim() === '') {
+          console.error('❌ Empty content received:', data);
+          throw new Error('Generated content is empty');
+        }
+
+        console.log(`✅ Content validated: ${data.content.length} chars`);
+
+        showResult(data);
+
+      } catch (err) {
+        console.error('❌ Generation error:', err);
+        console.error('Full error:', err.stack);
+        showError({ error: err.message, error_type: 'GenerationError' });
+      } finally {
+        resetGenerateBtn();
+      }
+    });
+
+    // ===== AGENT CARDS UI =====
+    function resetAgentCards() {
+      const agents = [
+        { id: 'researcher', color: 'primary', emoji: '🔍' },
+        { id: 'strategist', color: 'purple', emoji: '💡' },
+        { id: 'analyst', color: 'cyan', emoji: '📊' },
+        { id: 'writer', color: 'primary', emoji: '✍️' },
+        { id: 'reviewer', color: 'warning', emoji: '🛡️' }
+      ];
+
+      agents.forEach((agent, index) => {
+        const dot = document.getElementById(`${agent.id}Dot`);
+        const status = document.getElementById(`${agent.id}Status`);
+
+        setTimeout(() => {
+          dot.className = `status-dot bg-${agent.color}-500 pulse`;
+          status.className = `font-medium text-sm text-${agent.color}-700 dark:text-${agent.color}-400`;
+          status.textContent = `Running ${agent.emoji}`;
+
+          setTimeout(() => {
+            dot.className = `status-dot bg-success-500`;
+            status.className = 'font-medium text-sm text-success-700 dark:text-success-400';
+            status.textContent = 'Done ✅';
+          }, 2000);
+        }, index * 1000);
+      });
+
+      const writerProgress = document.getElementById('writerProgress');
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress += 5;
+        writerProgress.style.width = Math.min(progress, 100) + '%';
+        if (progress >= 100) clearInterval(progressInterval);
+      }, 300);
+
+      document.getElementById('reviewContent').innerHTML = `
       <div class="text-center py-12 text-gray-400">
         <i class="fas fa-spinner fa-spin text-4xl mb-3"></i>
         <p>CrewAI agents are working...</p>
         <p class="text-sm mt-2">This may take 30-60 seconds</p>
       </div>
     `;
-  }
+    }
 
-  function resetGenerateBtn() {
-    generateBtn.disabled = false;
-    generateBtn.innerHTML = '<i class="fas fa-play-circle mr-2"></i> Generate';
-  }// ===== SHOW RESULT (FIXED VERSION) =====
-  function showResult(data) {
-    const reviewContent = document.getElementById('reviewContent');
-    
-    const autoScore = data.auto_score || 7.5;
-    const content = data.content || 'Content generated successfully!';
-    const creativeAngle = data.creative_angle || 'Unknown Angle';
-    const generationId = data.generation_id;
-    const businessId = data.business_id;
-    const topic = data.topic;
-    const formatType = data.format_type;
-    const processingTime = data.processing_time_ms ? `${(data.processing_time_ms / 1000).toFixed(1)}s` : 'N/A';
-    const contentType = formatType.toLowerCase().includes('blog') ? 'blog' : 
-                        formatType.toLowerCase().includes('social') ? 'social' : 'ad';
-    
-    currentGenerationId = generationId;
-    currentBusinessId = businessId;
-    
-    // CRITICAL FIX: Store content globally BEFORE rendering
-    currentGeneratedContent = content;
-    
-    console.log('📊 Displaying result:', {
-      generationId, 
-      autoScore, 
-      creativeAngle,
-      contentLength: content.length
-    });
-    
-    reviewContent.innerHTML = `
+    function resetGenerateBtn() {
+      generateBtn.disabled = false;
+      generateBtn.innerHTML = '<i class="fas fa-play-circle mr-2"></i> Generate';
+    }// ===== SHOW RESULT (FIXED VERSION) =====
+    function showResult(data) {
+      const reviewContent = document.getElementById('reviewContent');
+
+      const autoScore = data.auto_score || 7.5;
+      const content = data.content || 'Content generated successfully!';
+      const creativeAngle = data.creative_angle || 'Unknown Angle';
+      const generationId = data.generation_id;
+      const businessId = data.business_id;
+      const topic = data.topic;
+      const formatType = data.format_type;
+      const processingTime = data.processing_time_ms ? `${(data.processing_time_ms / 1000).toFixed(1)}s` : 'N/A';
+      const contentType = formatType.toLowerCase().includes('blog') ? 'blog' :
+        formatType.toLowerCase().includes('social') ? 'social' : 'ad';
+
+      currentGenerationId = generationId;
+      currentBusinessId = businessId;
+
+      // CRITICAL FIX: Store content globally BEFORE rendering
+      currentGeneratedContent = content;
+
+      console.log('📊 Displaying result:', {
+        generationId,
+        autoScore,
+        creativeAngle,
+        contentLength: content.length
+      });
+
+      reviewContent.innerHTML = `
       <!-- Score Cards -->
       <div class="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6">
         <div class="bg-gradient-to-br from-success-50 to-success-100 dark:from-success-900/20 dark:to-transparent p-5 rounded-xl border border-success-200 dark:border-success-800/50">
@@ -925,6 +937,10 @@ ${escapeHtml(content)}
           class="px-5 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center">
           <i class="fas fa-redo mr-2"></i> New Generation
         </button>
+        <button onclick="rewriteWithFeedback()" id="rewriteBtn"
+          class="px-5 py-3 bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700 text-white rounded-xl font-medium flex items-center shadow-md hover:shadow-lg transition-all">
+          <i class="fas fa-sync-alt mr-2"></i> Rewrite
+        </button>
         <button onclick="copyGeneratedContent()" id="copyBtn"
           class="px-5 py-3 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-medium flex items-center shadow-md hover:shadow-lg transition-all">
           <i class="fas fa-copy mr-2"></i> Copy Content
@@ -935,106 +951,109 @@ ${escapeHtml(content)}
         </a>
       </div>
     `;
-    
-    currentApproval = null;
-  }
 
-  // ===== FIXED: Copy function that reads from global variable =====
-  function copyGeneratedContent() {
-    if (!currentGeneratedContent) {
-      alert('No content to copy');
-      return;
+      currentApproval = null;
     }
-    
-    const copyBtn = document.getElementById('copyBtn');
-    
-    navigator.clipboard.writeText(currentGeneratedContent).then(() => {
-      const originalHTML = copyBtn.innerHTML;
-      copyBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Copied!';
-      copyBtn.classList.remove('from-primary-500', 'to-primary-600');
-      copyBtn.classList.add('from-success-500', 'to-success-600');
-      
-      setTimeout(() => {
-        copyBtn.innerHTML = originalHTML;
-        copyBtn.classList.remove('from-success-500', 'to-success-600');
-        copyBtn.classList.add('from-primary-500', 'to-primary-600');
-      }, 2000);
-    }).catch(err => {
-      console.error('Copy failed:', err);
-      alert('Failed to copy: ' + err.message);
-    });
-  }// ===== FEEDBACK FUNCTIONS =====
-  function setApproval(approved) {
-    currentApproval = approved;
-    const approveBtn = document.getElementById('approveBtn');
-    const rejectBtn = document.getElementById('rejectBtn');
-    
-    if (approved) {
-      approveBtn.className = 'flex-1 px-4 py-3 bg-success-600 text-white rounded-xl font-medium ring-2 ring-success-400 flex items-center justify-center transition-all';
-      rejectBtn.className = 'flex-1 px-4 py-3 bg-critical-500 hover:bg-critical-600 text-white rounded-xl font-medium transition-all flex items-center justify-center';
-    } else {
-      approveBtn.className = 'flex-1 px-4 py-3 bg-success-500 hover:bg-success-600 text-white rounded-xl font-medium transition-all flex items-center justify-center';
-      rejectBtn.className = 'flex-1 px-4 py-3 bg-critical-600 text-white rounded-xl font-medium ring-2 ring-critical-400 flex items-center justify-center transition-all';
-    }
-  }
 
-  async function submitHumanFeedback(generationId, businessId, creativeAngle, autoScore, contentType) {
-    if (currentApproval === null) {
-      alert('⚠️ Please select Approve or Reject first');
-      return;
-    }
-    
-    const humanScore = parseFloat(document.getElementById('humanScoreInput').value);
-    const humanFeedback = document.getElementById('humanFeedbackInput').value.trim();
-    
-    if (!humanFeedback) {
-      alert('⚠️ Please provide feedback comments (required)');
-      document.getElementById('humanFeedbackInput').focus();
-      return;
-    }
-    
-    if (isNaN(humanScore) || humanScore < 0 || humanScore > 10) {
-      alert('⚠️ Please enter a valid score between 0 and 10');
-      return;
-    }
-    
-    const submitBtn = document.getElementById('submitFeedbackBtn');
-    const originalBtnHTML = submitBtn.innerHTML;
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Submitting...';
-    
-    const feedbackStatus = document.getElementById('feedbackStatus');
-    feedbackStatus.classList.remove('hidden');
-    feedbackStatus.className = 'mt-3 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-sm';
-    feedbackStatus.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving feedback to learning memory...';
-    
-    try {
-      const payload = {
-        generation_id: generationId,
-        business_id: businessId,
-        human_approved: currentApproval,
-        human_score: humanScore,
-        human_feedback: humanFeedback
-      };
-      
-      console.log('📝 Submitting feedback:', payload);
-      
-      const res = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload)
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail || errorData.error || 'Feedback submission failed');
+    // ===== FIXED: Copy function that reads from global variable =====
+    function copyGeneratedContent() {
+      if (!currentGeneratedContent) {
+        alert('No content to copy');
+        return;
       }
-      
-      const data = await res.json();
-      console.log('✅ Feedback saved:', data);
-      
-      feedbackStatus.className = 'mt-3 p-4 bg-success-100 dark:bg-success-900/30 rounded-lg text-sm border border-success-300 dark:border-success-700';
-      feedbackStatus.innerHTML = `
+
+      const copyBtn = document.getElementById('copyBtn');
+
+      navigator.clipboard.writeText(currentGeneratedContent).then(() => {
+        const originalHTML = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Copied!';
+        copyBtn.classList.remove('from-primary-500', 'to-primary-600');
+        copyBtn.classList.add('from-success-500', 'to-success-600');
+
+        setTimeout(() => {
+          copyBtn.innerHTML = originalHTML;
+          copyBtn.classList.remove('from-success-500', 'to-success-600');
+          copyBtn.classList.add('from-primary-500', 'to-primary-600');
+        }, 2000);
+      }).catch(err => {
+        console.error('Copy failed:', err);
+        alert('Failed to copy: ' + err.message);
+      });
+    }// ===== FEEDBACK FUNCTIONS =====
+    function setApproval(approved) {
+      currentApproval = approved;
+      const approveBtn = document.getElementById('approveBtn');
+      const rejectBtn = document.getElementById('rejectBtn');
+
+      if (approved) {
+        approveBtn.className = 'flex-1 px-4 py-3 bg-success-600 text-white rounded-xl font-medium ring-2 ring-success-400 flex items-center justify-center transition-all';
+        rejectBtn.className = 'flex-1 px-4 py-3 bg-critical-500 hover:bg-critical-600 text-white rounded-xl font-medium transition-all flex items-center justify-center';
+      } else {
+        approveBtn.className = 'flex-1 px-4 py-3 bg-success-500 hover:bg-success-600 text-white rounded-xl font-medium transition-all flex items-center justify-center';
+        rejectBtn.className = 'flex-1 px-4 py-3 bg-critical-600 text-white rounded-xl font-medium ring-2 ring-critical-400 flex items-center justify-center transition-all';
+      }
+    }
+
+    async function submitHumanFeedback(generationId, businessId, creativeAngle, autoScore, contentType) {
+      if (currentApproval === null) {
+        alert('⚠️ Please select Approve or Reject first');
+        return;
+      }
+
+      const humanScore = parseFloat(document.getElementById('humanScoreInput').value);
+      const humanFeedback = document.getElementById('humanFeedbackInput').value.trim();
+      lastFeedbackText = humanFeedback; // Store for rewrite
+
+      if (!humanFeedback) {
+        alert('⚠️ Please provide feedback comments (required)');
+        document.getElementById('humanFeedbackInput').focus();
+        return;
+      }
+
+      if (isNaN(humanScore) || humanScore < 0 || humanScore > 10) {
+        alert('⚠️ Please enter a valid score between 0 and 10');
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitFeedbackBtn');
+      const originalBtnHTML = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Submitting...';
+
+      const feedbackStatus = document.getElementById('feedbackStatus');
+      feedbackStatus.classList.remove('hidden');
+      feedbackStatus.className = 'mt-3 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-sm';
+      feedbackStatus.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving feedback to learning memory...';
+
+      try {
+        const payload = {
+          generation_id: generationId,
+          business_id: businessId,
+          human_approved: currentApproval,
+          human_score: humanScore,
+          human_feedback: humanFeedback
+        };
+
+        console.log('📝 Submitting feedback:', payload);
+
+        const res = await authFetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res) return;
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.detail || errorData.error || 'Feedback submission failed');
+        }
+
+        const data = await res.json();
+        console.log('✅ Feedback saved:', data);
+
+        feedbackStatus.className = 'mt-3 p-4 bg-success-100 dark:bg-success-900/30 rounded-lg text-sm border border-success-300 dark:border-success-700';
+        const isRejected = !currentApproval;
+        feedbackStatus.innerHTML = `
         <div class="flex items-start">
           <i class="fas fa-check-circle text-success-600 dark:text-success-400 text-xl mr-3 mt-0.5"></i>
           <div class="flex-1">
@@ -1050,25 +1069,35 @@ ${escapeHtml(content)}
               Agent Accuracy: <strong>${data.agent_accuracy.toFixed(1)}%</strong>
             </p>
             ` : ''}
+            ${isRejected ? `
+            <div class="mt-3 pt-3 border-t border-success-300 dark:border-success-700">
+              <p class="text-success-700 dark:text-success-300 text-xs mb-2">
+                <i class="fas fa-lightbulb mr-1"></i> Not satisfied? Rewrite instantly using your feedback:
+              </p>
+              <button onclick="rewriteWithFeedback()" 
+                class="px-4 py-2 bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700 text-white rounded-lg font-semibold text-sm flex items-center shadow-md hover:shadow-lg transition-all">
+                <i class="fas fa-sync-alt mr-2"></i> Rewrite with My Feedback
+              </button>
+            </div>` : ''}
           </div>
         </div>
       `;
-      
-      document.getElementById('approveBtn').disabled = true;
-      document.getElementById('rejectBtn').disabled = true;
-      document.getElementById('humanScoreInput').disabled = true;
-      document.getElementById('humanFeedbackInput').disabled = true;
-      submitBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Feedback Submitted';
-      
-      setTimeout(() => {
-        loadLearningStats();
-      }, 1000);
-      
-    } catch (err) {
-      console.error('❌ Feedback error:', err);
-      
-      feedbackStatus.className = 'mt-3 p-4 bg-red-100 dark:bg-red-900/30 rounded-lg text-sm border border-red-300 dark:border-red-700';
-      feedbackStatus.innerHTML = `
+
+        document.getElementById('approveBtn').disabled = true;
+        document.getElementById('rejectBtn').disabled = true;
+        document.getElementById('humanScoreInput').disabled = true;
+        document.getElementById('humanFeedbackInput').disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Feedback Submitted';
+
+        setTimeout(() => {
+          loadLearningStats();
+        }, 1000);
+
+      } catch (err) {
+        console.error('❌ Feedback error:', err);
+
+        feedbackStatus.className = 'mt-3 p-4 bg-red-100 dark:bg-red-900/30 rounded-lg text-sm border border-red-300 dark:border-red-700';
+        feedbackStatus.innerHTML = `
         <div class="flex items-start">
           <i class="fas fa-exclamation-triangle text-red-600 dark:text-red-400 text-xl mr-3 mt-0.5"></i>
           <div class="flex-1">
@@ -1077,19 +1106,97 @@ ${escapeHtml(content)}
           </div>
         </div>
       `;
-      
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = originalBtnHTML;
-    }
-  }
 
-  // ===== ERROR DISPLAY =====
-  function showError(result) {
-    const reviewContent = document.getElementById('reviewContent');
-    const errorMsg = result?.error || 'An unexpected error occurred';
-    const errorType = result?.error_type || 'Unknown';
-    
-    reviewContent.innerHTML = `
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnHTML;
+      }
+    }
+
+    // ===== REWRITE WITH FEEDBACK =====
+    async function rewriteWithFeedback() {
+      const businessId = currentBusinessId || document.getElementById('businessIdInput')?.value?.trim() || 'BAND_Foods';
+      const baseTopic = document.getElementById('topicInput')?.value?.trim() || 'healthy dieting';
+      const format = document.getElementById('formatSelect')?.value || 'Blog Article';
+
+      // Build an enriched topic that includes the user's feedback as guidance
+      const feedbackNote = lastFeedbackText
+        ? ` [Rewrite guidance: ${lastFeedbackText}]`
+        : '';
+      const enrichedTopic = baseTopic + feedbackNote;
+
+      // Disable all rewrite buttons and show loading state
+      const rewriteBtn = document.getElementById('rewriteBtn');
+      const originalHTML = rewriteBtn ? rewriteBtn.innerHTML : '';
+      if (rewriteBtn) {
+        rewriteBtn.disabled = true;
+        rewriteBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Rewriting...';
+      }
+
+      // Also disable the inline rewrite button if present
+      document.querySelectorAll('button[onclick="rewriteWithFeedback()"]').forEach(btn => {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Rewriting...';
+      });
+
+      const generateBtn = document.getElementById('generateBtn');
+      if (generateBtn) {
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Rewriting...';
+      }
+
+      resetAgentCards();
+
+      const payload = {
+        business_id: businessId,
+        topic: enrichedTopic,
+        format: format,
+        voice: currentVoice
+      };
+
+      console.log('🔄 Rewriting with feedback payload:', payload);
+
+      try {
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.detail || 'Rewrite failed');
+        }
+
+        const data = await res.json();
+        console.log('✅ Rewrite complete:', data);
+
+        if (!data.content || data.content.trim() === '') {
+          throw new Error('Rewritten content is empty');
+        }
+
+        // Restore the original topic display (not enriched)
+        data.topic = baseTopic;
+        showResult(data);
+
+      } catch (err) {
+        console.error('❌ Rewrite error:', err);
+        showError({ error: err.message, error_type: 'RewriteError' });
+      } finally {
+        resetGenerateBtn();
+        if (rewriteBtn) {
+          rewriteBtn.disabled = false;
+          rewriteBtn.innerHTML = originalHTML || '<i class="fas fa-sync-alt mr-2"></i> Rewrite';
+        }
+      }
+    }
+
+    // ===== ERROR DISPLAY =====
+    function showError(result) {
+      const reviewContent = document.getElementById('reviewContent');
+      const errorMsg = result?.error || 'An unexpected error occurred';
+      const errorType = result?.error_type || 'Unknown';
+
+      reviewContent.innerHTML = `
       <div class="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 p-6 rounded-2xl border border-red-200 dark:border-red-800/30">
         <h4 class="text-lg font-bold text-red-800 dark:text-red-200 mb-3 flex items-center">
           <i class="fas fa-exclamation-triangle mr-2"></i> Generation Failed
@@ -1108,21 +1215,21 @@ ${escapeHtml(content)}
         </div>
       </div>
     `;
-  }
+    }
 
-  // ===== UTILITY FUNCTIONS =====
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-  
-  async function checkBackendHealth() {
-    try {
-      const res = await fetch('/health');
-      const data = await res.json();
-      
-      const statusInfo = `
+    // ===== UTILITY FUNCTIONS =====
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    async function checkBackendHealth() {
+      try {
+        const res = await fetch('/health');
+        const data = await res.json();
+
+        const statusInfo = `
 Status: ${data.status}
 Database: ${data.database?.healthy ? '✅ Healthy' : '❌ Unhealthy'}
 Circuit Breakers:
@@ -1130,12 +1237,13 @@ Circuit Breakers:
   - Tavily: ${data.circuit_breakers?.tavily || 'unknown'}
   - Database: ${data.circuit_breakers?.database || 'unknown'}
       `.trim();
-      
-      alert(statusInfo);
-    } catch (e) {
-      alert('❌ Backend is not responding!\n\nMake sure the server is running:\npython app.py');
+
+        alert(statusInfo);
+      } catch (e) {
+        alert('❌ Backend is not responding!\n\nMake sure the server is running:\npython app.py');
+      }
     }
-  }
   </script>
 </body>
+
 </html>

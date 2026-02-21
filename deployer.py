@@ -740,7 +740,7 @@ class BrandLearningMemory:
                 conn_params['options'] = '-c statement_timeout=30000'
             
             conn = psycopg2.connect(**conn_params)
-            conn.autocommit = False  # Explicit transaction control
+            conn.autocommit = False
             
             # Set statement timeout after connection for Neon
             if 'pooler' in parsed.hostname:
@@ -1852,7 +1852,7 @@ def run_iterative_generation(business_id: str, topic: str,
     
     generation_id = str(uuid.uuid4())
     
-    # Get user_id
+    
     user_id = None
     try:
         with get_db_session() as session:
@@ -1990,11 +1990,11 @@ def run_iterative_generation(business_id: str, topic: str,
         
         # Check if we should stop
         if decision == 'approve' or current_score >= TARGET_SCORE:
-            logger.info(f"✓ Quality threshold reached at iteration {iteration}")
+            logger.info(f"Quality threshold reached at iteration {iteration}")
             break
         
         if iteration == MAX_ITERATIONS:
-            logger.info(f"⚠ Reached max iterations ({MAX_ITERATIONS})")
+            logger.info(f"Reached max iterations ({MAX_ITERATIONS})")
             break
     
     # Final validation
@@ -2723,7 +2723,7 @@ if __name__ == "__main__":
     print("="*60)
     
     # Offer to add feedback
-    print("\n💬 To provide feedback on this generation, run:")
+    print("\nTo provide feedback on this generation, run:")
     print(f"python deployer.py --add-feedback \\")
     print(f"  --generation-id {generation_id} \\")
     print(f"  --business_id {args.business_id} \\")

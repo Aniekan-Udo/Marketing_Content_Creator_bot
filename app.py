@@ -10,6 +10,7 @@ import structlog
 import psycopg2
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks, Request, Depends
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -18,7 +19,6 @@ from slowapi.extension import Limiter
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from fastapi import Request
 
 
 # Load environment variables
@@ -33,7 +33,12 @@ try:
         BrandDocument, 
         ReviewerLearning,
         check_database_health,
-        get_pool_status
+        get_pool_status,
+        hash_password,
+        verify_password,
+        create_access_token,
+        get_current_user,
+        get_db_session
     )
     from deployer import (
         run_generation_with_learning,
@@ -53,7 +58,12 @@ except ImportError:
         BrandDocument, 
         ReviewerLearning,
         check_database_health,
-        get_pool_status
+        get_pool_status,
+        hash_password,
+        verify_password,
+        create_access_token,
+        get_current_user,
+        get_db_session
     )
     from deployer import (
         run_generation_with_learning,
@@ -231,13 +241,63 @@ class HealthResponse(BaseModel):
     connection_pool: dict
 
 
+class RegisterRequest(BaseModel):
+    email: str
+    business_id: str
+    business_name: Optional[str] = None
+    password: str
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters')
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError('Password must be no more than 72 bytes (UTF-8). Try a shorter password.')
+        return v
+
+    @field_validator('business_id')
+    @classmethod
+    def validate_business_id(cls, v):
+        if not v or len(v) < 3:
+            raise ValueError('business_id must be at least 3 characters')
+        return v
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError('Password must be no more than 72 bytes')
+        return v
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    business_id: str
+    business_name: Optional[str] = None
+
+
 # ===== ROUTES =====
 
+@app.get("/login")
+async def serve_login():
+    """Serve the login/register page"""
+    if os.path.exists("login.html"):
+        return FileResponse("login.html")
+    return JSONResponse(status_code=404, content={"message": "Login page not found"})
+
+
 @app.get("/")
-async def serve_index():
-    """Serve the main frontend"""
-    if os.path.exists("index.html"):
-        return FileResponse("index.html")
+async def serve_landing():
+    """Serve the landing page (entry point)"""
+    if os.path.exists("landing_page.html"):
+        return FileResponse("landing_page.html")
     return {
         "name": "BrandGuard AI API",
         "version": "2.0.0",
@@ -246,12 +306,94 @@ async def serve_index():
     }
 
 
+@app.get("/app")
+async def serve_index():
+    """Serve the main app frontend"""
+    if os.path.exists("index.html"):
+        return FileResponse("index.html")
+    return JSONResponse(status_code=404, content={"message": "App page not found"})
+
+
 @app.get("/feedback")
 async def serve_feedback_page():
     """Serve the feedback page"""
     if os.path.exists("feedback.html"):
         return FileResponse("feedback.html")
     return JSONResponse(status_code=404, content={"message": "Feedback page not found"})
+
+
+# ===== AUTH ENDPOINTS =====
+
+@app.post("/api/auth/register", response_model=TokenResponse)
+async def register(body: RegisterRequest):
+    """Register a new user account"""
+    with get_db_session() as session:
+        # Check email uniqueness
+        existing_email = session.query(User).filter_by(email=body.email).first()
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Email already registered")
+
+        # Check business_id uniqueness
+        existing_biz = session.query(User).filter_by(business_id=body.business_id).first()
+        if existing_biz:
+            raise HTTPException(status_code=400, detail="Business ID already taken")
+
+        user = User(
+            email=body.email,
+            business_id=body.business_id,
+            business_name=body.business_name or body.business_id,
+            industry='Marketing',
+            password_hash=hash_password(body.password)
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+        token = create_access_token({"sub": user.business_id})
+        logger.info(f"New user registered: {user.business_id}")
+        return TokenResponse(
+            access_token=token,
+            business_id=user.business_id,
+            business_name=user.business_name
+        )
+
+
+@app.post("/api/auth/login", response_model=TokenResponse)
+async def login(body: LoginRequest):
+    """Login with email + password, returns JWT"""
+    with get_db_session() as session:
+        user = session.query(User).filter_by(email=body.email).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        if not user.password_hash:
+            raise HTTPException(status_code=401, detail="Account has no password set. Please register again.")
+        if not verify_password(body.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="Account is inactive")
+
+        token = create_access_token({"sub": user.business_id})
+        logger.info(f"User logged in: {user.business_id}")
+        return TokenResponse(
+            access_token=token,
+            business_id=user.business_id,
+            business_name=user.business_name
+        )
+
+
+@app.get("/api/auth/me")
+async def get_me(current_user: User = Depends(get_current_user)):
+    """Get current authenticated user info"""
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "business_id": current_user.business_id,
+        "business_name": current_user.business_name,
+        "subscription_tier": current_user.subscription_tier,
+        "is_active": current_user.is_active,
+        "monthly_generation_limit": current_user.monthly_generation_limit,
+        "monthly_generations_used": current_user.monthly_generations_used,
+    }
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -663,6 +805,39 @@ async def refresh_metrics(request: Request, business_id: str, content_type: str 
 
 
 # ===== ERROR HANDLERS =====
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Log specific validation errors for debugging"""
+    # Create serializable version of errors
+    errors = []
+    for error in exc.errors():
+        # Strip 'ctx' if it's not serializable or just stringify it
+        e = error.copy()
+        if 'ctx' in e:
+            e['ctx'] = {k: str(v) for k, v in e['ctx'].items()}
+        errors.append(e)
+
+    import json
+    # Ultra-prominent logging for the user to find
+    print("\n" + "="*50)
+    print(f"VALIDATION ERROR: {request.url}")
+    try:
+        print(json.dumps(errors, indent=2))
+    except Exception:
+        print(errors)
+    print("="*50 + "\n")
+    
+    logger.error(f"Validation error for {request.url}: {errors}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "validation_error",
+            "message": "The data provided is invalid.",
+            "details": errors
+        }
+    )
+
 
 @app.exception_handler(429)
 async def rate_limit_handler(request: Request, exc: HTTPException):
