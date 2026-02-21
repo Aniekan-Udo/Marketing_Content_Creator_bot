@@ -32,6 +32,9 @@ python-dotenv
 ratelimit
 circuitbreaker
 structlog
+passlib[bcrypt]
+python-jose[cryptography]
+
 
 
 

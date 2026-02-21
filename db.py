@@ -13,10 +13,7 @@ from sqlalchemy.pool import QueuePool
 from sqlalchemy.dialects.postgresql import JSONB, INET
 from sqlalchemy.exc import OperationalError, DatabaseError
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from passlib.context import CryptContext
-from jose import JWTError, jwt
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+
 
 # Load environment variables
 load_dotenv()
