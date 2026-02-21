@@ -7,6 +7,9 @@ llama-index-vector-stores-postgres
 llama-index-readers-file
 fastembed
 llama-index-core
+pdfplumber
+PyPDF2
+python-docx
 
 # Core stack
 fastapi

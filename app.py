@@ -505,7 +505,7 @@ async def upload_documents(
         # Create directory
         folder_mapping = {
             'blog': f'brand_blogs/{business_id}',
-            'social': f'brand_social/{business_id}',
+            'social': f'brand_socials/{business_id}',
             'ad': f'brand_ads/{business_id}'
         }
 

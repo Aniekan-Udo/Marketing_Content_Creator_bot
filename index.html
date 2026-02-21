@@ -135,6 +135,10 @@
             class="bg-accent hover:bg-white text-bg px-5 py-2 rounded-sm font-bold text-xs uppercase tracking-wider transition-all shadow-lg">
             <i class="fas fa-magic mr-2"></i> New Request
           </button>
+          <button id="theme-toggle"
+            class="p-2 rounded-sm text-gray-400 hover:text-white hover:bg-surface2 transition-all">
+            <i class="fas fa-moon"></i>
+          </button>
           <button onclick="logout()"
             class="px-4 py-2 rounded-sm font-bold text-xs uppercase tracking-wider transition-all border border-border text-gray-400 hover:text-white hover:border-gray-500">
             <i class="fas fa-sign-out-alt mr-2"></i> Logout
@@ -460,7 +464,7 @@
       localStorage.setItem('theme', isDark ? 'dark' : 'light');
       themeToggle.innerHTML = isDark
         ? '<i class="fas fa-sun text-yellow-400"></i>'
-        : '<i class="fas fa-moon text-gray-600 dark:text-gray-300></i>';
+        : '<i class="fas fa-moon"></i>';
     });
 
     // ===== LOAD LEARNING STATS =====
@@ -644,15 +648,16 @@
 
     voiceFormal.addEventListener('click', () => {
       currentVoice = 'formal';
-      voiceFormal.className = 'px-3 py-2 bg-brand-formal/20 text-brand-formal rounded-lg text-sm font-medium hover:bg-brand-formal/30 transition-colors ring-2 ring-brand-formal/50';
-      voiceTechnical.className = 'px-3 py-2 bg-brand-technical/10 text-brand-technical rounded-lg text-sm font-medium hover:bg-brand-technical/20 transition-colors';
+      voiceFormal.className = 'px-3 py-2 bg-accent/20 text-accent rounded-sm text-[10px] font-bold uppercase tracking-widest hover:bg-accent/30 transition-colors ring-1 ring-accent/50';
+      voiceTechnical.className = 'px-3 py-2 bg-surface2 text-gray-400 border border-border rounded-sm text-[10px] font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors';
     });
 
     voiceTechnical.addEventListener('click', () => {
       currentVoice = 'technical';
-      voiceTechnical.className = 'px-3 py-2 bg-brand-technical/20 text-brand-technical rounded-lg text-sm font-medium hover:bg-brand-technical/30 transition-colors ring-2 ring-brand-technical/50';
-      voiceFormal.className = 'px-3 py-2 bg-brand-formal/10 text-brand-formal rounded-lg text-sm font-medium hover:bg-brand-formal/20 transition-colors';
-    });// ===== CONTENT GENERATION =====
+      voiceTechnical.className = 'px-3 py-2 bg-accent/20 text-accent rounded-sm text-[10px] font-bold uppercase tracking-widest hover:bg-accent/30 transition-colors ring-1 ring-accent/50';
+      voiceFormal.className = 'px-3 py-2 bg-surface2 text-gray-400 border border-border rounded-sm text-[10px] font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors';
+    });
+    // ===== CONTENT GENERATION =====
     const generateBtn = document.getElementById('generateBtn');
     const topicInput = document.getElementById('topicInput');
     const formatSelect = document.getElementById('formatSelect');
