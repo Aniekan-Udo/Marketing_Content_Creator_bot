@@ -1188,10 +1188,9 @@ class Marketing_Rag_System:
                 logger.info(f"Data path: {self.data_path}")
                 logger.info(f"Table name: {self.table_name}")
                 
-                # Validate data path
                 if not os.path.exists(self.data_path):
-                    logger.error(f"Data path does not exist: {self.data_path}")
-                    raise ValueError(f"Data path not found: {self.data_path}")
+                    logger.warning(f"Data path does not exist: {self.data_path}. Creating it for future use.")
+                    os.makedirs(self.data_path, exist_ok=True)
                 
                 files = os.listdir(self.data_path)
                 logger.info(f"Files found: {len(files)}")
