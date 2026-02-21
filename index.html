@@ -139,10 +139,6 @@
             class="p-2 rounded-sm text-gray-400 hover:text-white hover:bg-surface2 transition-all">
             <i class="fas fa-moon"></i>
           </button>
-          <button onclick="logout()"
-            class="px-4 py-2 rounded-sm font-bold text-xs uppercase tracking-wider transition-all border border-border text-gray-400 hover:text-white hover:border-gray-500">
-            <i class="fas fa-sign-out-alt mr-2"></i> Logout
-          </button>
         </div>
       </div>
     </div>
@@ -177,6 +173,7 @@
             Business ID
           </label>
           <input type="text" name="business_id" id="businessIdInput" placeholder="e.g., my_brand" value=""
+            autocomplete="off"
             class="w-full px-4 py-3 bg-surface border border-border rounded-sm text-sm focus:border-accent2 transition-all outline-none">
         </div>
 
@@ -230,7 +227,7 @@
       <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div>
           <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-tighter mb-2">Topic</label>
-          <input id="topicInput" type="text" value="growth strategies"
+          <input id="topicInput" type="text" value="" placeholder="e.g. Growth Strategies" autocomplete="off"
             class="w-full px-4 py-3 bg-surface2 border border-border rounded-sm text-sm focus:border-accent transition-all outline-none">
         </div>
         <div>
@@ -411,41 +408,12 @@
   <script>
     // ===== GLOBAL STATE =====
     let currentGenerationId = null;
-    let currentBusinessId = 'BAND_Foods';
+    let currentBusinessId = null;
     let currentApproval = null;
     let currentGeneratedContent = ''; // FIXED: Store content globally for copying
     let lastFeedbackText = ''; // Store last feedback for rewrite
 
-    // ===== AUTH GUARD =====
-    const _token = localStorage.getItem('bg_token');
-    if (!_token) {
-      window.location.href = '/login';
-    }
-
-    // Helper: authenticated fetch
-    function authFetch(url, options = {}) {
-      const tok = localStorage.getItem('bg_token');
-      options.headers = Object.assign({}, options.headers || {}, {
-        ...(tok ? { 'Authorization': 'Bearer ' + tok } : {})
-      });
-      return fetch(url, options).then(res => {
-        if (res.status === 401) {
-          localStorage.removeItem('bg_token');
-          localStorage.removeItem('bg_business_id');
-          localStorage.removeItem('bg_business_name');
-          window.location.href = '/login';
-          return;
-        }
-        return res;
-      });
-    }
-
-    function logout() {
-      localStorage.removeItem('bg_token');
-      localStorage.removeItem('bg_business_id');
-      localStorage.removeItem('bg_business_name');
-      window.location.href = '/login';
-    }
+    // Authentication checks removed
 
     // ===== THEME TOGGLE =====
     const themeToggle = document.getElementById('theme-toggle');
@@ -470,8 +438,9 @@
     // ===== LOAD LEARNING STATS =====
     async function loadLearningStats() {
       try {
-        const businessId = document.getElementById('businessIdInput').value.trim() || 'BAND_Foods';
-        const res = await authFetch(`/api/learning/${businessId}/stats?content_type=blog`);
+        const businessId = document.getElementById('businessIdInput').value.trim();
+        if (!businessId) return;
+        const res = await fetch(`/api/learning/${businessId}/stats?content_type=blog`);
         if (!res) return;
         const stats = await res.json();
 
@@ -499,15 +468,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       loadLearningStats();
-      // Auto-fill Business ID from localStorage
-      const savedId = localStorage.getItem('bg_business_id');
-      if (savedId) {
-        const input = document.getElementById('businessIdInput');
-        if (input) {
-          input.value = savedId;
-          currentBusinessId = savedId;
-        }
-      }
+      // Auto-fill from localStorage removed to ensure neutral start
     });
 
     // ===== KB UPLOAD HANDLER =====
@@ -560,7 +521,7 @@
       submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Uploading...';
 
       try {
-        const res = await authFetch('/api/upload', {
+        const res = await fetch('/api/upload', {
           method: 'POST',
           body: formData
         });
@@ -618,7 +579,7 @@
       refreshMetricsBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Refreshing...';
 
       try {
-        const res = await authFetch(`/api/refresh-metrics/${businessId}`, { method: 'POST' });
+        const res = await fetch(`/api/refresh-metrics/${businessId}`, { method: 'POST' });
         if (!res) return;
         const data = await res.json();
 
@@ -663,11 +624,17 @@
     const formatSelect = document.getElementById('formatSelect');
 
     generateBtn.addEventListener('click', async () => {
-      const businessId = document.getElementById('businessIdInput')?.value?.trim() || 'BAND_Foods';
+      const businessId = document.getElementById('businessIdInput')?.value?.trim();
       currentBusinessId = businessId;
 
       if (!businessId) {
         alert('Please enter a Business ID first');
+        return;
+      }
+
+      const topicValue = topicInput.value.trim();
+      if (!topicValue) {
+        alert('Please enter a Topic');
         return;
       }
 
@@ -676,7 +643,7 @@
 
       const payload = {
         business_id: businessId,
-        topic: topicInput.value || 'healthy dieting',
+        topic: topicValue,
         format: formatSelect.value,
         voice: currentVoice
       };
@@ -686,7 +653,7 @@
       resetAgentCards();
 
       try {
-        const res = await authFetch('/api/generate', {
+        const res = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1041,7 +1008,7 @@ ${escapeHtml(content)}
 
         console.log('📝 Submitting feedback:', payload);
 
-        const res = await authFetch('/api/feedback', {
+        const res = await fetch('/api/feedback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1107,7 +1074,7 @@ ${escapeHtml(content)}
           <i class="fas fa-exclamation-triangle text-red-600 dark:text-red-400 text-xl mr-3 mt-0.5"></i>
           <div class="flex-1">
             <p class="font-semibold text-red-800 dark:text-red-200">❌ Feedback Submission Failed</p>
-            <p class="text-red-700 dark:text-red-300 text-xs mt-1">${err.message}</p>
+            <p class="text-red-700 dark:text-red-300 text-xs mt-1">An internal error occurred. Please try again in a few minutes.</p>
           </div>
         </div>
       `;
@@ -1119,8 +1086,8 @@ ${escapeHtml(content)}
 
     // ===== REWRITE WITH FEEDBACK =====
     async function rewriteWithFeedback() {
-      const businessId = currentBusinessId || document.getElementById('businessIdInput')?.value?.trim() || 'BAND_Foods';
-      const baseTopic = document.getElementById('topicInput')?.value?.trim() || 'healthy dieting';
+      const businessId = currentBusinessId || document.getElementById('businessIdInput')?.value?.trim();
+      const baseTopic = document.getElementById('topicInput')?.value?.trim();
       const format = document.getElementById('formatSelect')?.value || 'Blog Article';
 
       // Build an enriched topic that includes the user's feedback as guidance
@@ -1207,8 +1174,8 @@ ${escapeHtml(content)}
           <i class="fas fa-exclamation-triangle mr-2"></i> Generation Failed
         </h4>
         <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-red-200 dark:border-red-700">
-          <p class="text-red-600 dark:text-red-400 font-medium">${escapeHtml(errorMsg)}</p>
-          <p class="text-xs text-red-500 dark:text-red-500 mt-2">Error Type: ${escapeHtml(errorType)}</p>
+          <p class="text-red-600 dark:text-red-400 font-medium">An internal error occurred. Please try again in a few minutes.</p>
+          <p class="text-xs text-red-500 dark:text-red-500 mt-2">Error: system_failure</p>
         </div>
         <div class="mt-4 flex gap-3">
           <button onclick="location.reload()" class="px-5 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium transition-colors">

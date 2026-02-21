@@ -30,9 +30,6 @@ tavily-python
 slowapi
 python-dotenv
 ratelimit
-python-jose[cryptography]
-passlib
-argon2-cffi
 circuitbreaker
 structlog
 

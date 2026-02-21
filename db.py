@@ -58,7 +58,7 @@ class User(Model):
     
     is_active: Mapped[bool] = mapped_column(Boolean, server_default='true', nullable=False)
     subscription_tier: Mapped[str] = mapped_column(String(50), server_default='free', nullable=False)
-    password_hash: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # password_hash removed
     
     monthly_generation_limit: Mapped[int] = mapped_column(Integer, server_default='50', nullable=False)
     monthly_generations_used: Mapped[int] = mapped_column(Integer, server_default='0', nullable=False)
@@ -365,16 +365,6 @@ def init_db():
                     conn.execute(text("ALTER TABLE brand_documents ADD COLUMN file_content TEXT"))
                     logger.info("Successfully added 'file_content' column")
 
-                # Self-healing: add password_hash column to users if missing
-                check_pw = text("""
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_name='users' AND column_name='password_hash'
-                """)
-                pw_result = conn.execute(check_pw).fetchone()
-                if not pw_result:
-                    logger.info("Adding missing 'password_hash' column to 'users'...")
-                    conn.execute(text("ALTER TABLE users ADD COLUMN password_hash TEXT"))
-                    logger.info("Successfully added 'password_hash' column")
 
         except Exception as migration_error:
             logger.warning(f"Self-healing migration failed (non-critical): {migration_error}")
@@ -504,65 +494,7 @@ def get_or_create_user(business_id: str, email: str = None, session: Session = N
             session.close()
 
 
-# ===== AUTH HELPERS =====
-
-# Secret + algorithm – read from env, fall back to dev default
-JWT_SECRET = os.getenv("JWT_SECRET", "brandguard-dev-secret-change-in-production")
-JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
-
-pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
-
-
-def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
-
-
-def verify_password(plain: str, hashed: str) -> bool:
-    if not plain or not hashed:
-        return False
-    return pwd_context.verify(plain, hashed)
-
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-
-def decode_access_token(token: str) -> Optional[dict]:
-    try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-    except JWTError:
-        return None
-
-
-def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
-    """FastAPI dependency — validates JWT and returns the User row."""
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    payload = decode_access_token(token)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    business_id: str = payload.get("sub")
-    if not business_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
-
-    with get_db_session() as session:
-        user = session.query(User).filter_by(business_id=business_id).first()
-        if not user or not user.is_active:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
-        return user
+# Auth helpers removed (hash_password, verify_password, create_access_token, decode_access_token, get_current_user)
 
 
 def get_pool_status() -> dict:

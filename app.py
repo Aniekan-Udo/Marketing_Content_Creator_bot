@@ -34,10 +34,6 @@ try:
         ReviewerLearning,
         check_database_health,
         get_pool_status,
-        hash_password,
-        verify_password,
-        create_access_token,
-        get_current_user,
         get_db_session
     )
     from deployer import (
@@ -59,10 +55,6 @@ except ImportError:
         ReviewerLearning,
         check_database_health,
         get_pool_status,
-        hash_password,
-        verify_password,
-        create_access_token,
-        get_current_user,
         get_db_session
     )
     from deployer import (
@@ -241,56 +233,12 @@ class HealthResponse(BaseModel):
     connection_pool: dict
 
 
-class RegisterRequest(BaseModel):
-    email: str
-    business_id: str
-    business_name: Optional[str] = None
-    password: str
-
-    @field_validator('password')
-    @classmethod
-    def validate_password(cls, v):
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters')
-        if len(v.encode('utf-8')) > 72:
-            raise ValueError('Password must be no more than 72 bytes (UTF-8). Try a shorter password.')
-        return v
-
-    @field_validator('business_id')
-    @classmethod
-    def validate_business_id(cls, v):
-        if not v or len(v) < 3:
-            raise ValueError('business_id must be at least 3 characters')
-        return v
-
-
-class LoginRequest(BaseModel):
-    email: str
-    password: str
-
-    @field_validator('password')
-    @classmethod
-    def validate_password(cls, v):
-        if len(v.encode('utf-8')) > 72:
-            raise ValueError('Password must be no more than 72 bytes')
-        return v
-
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    business_id: str
-    business_name: Optional[str] = None
+# Removed auth-related models
 
 
 # ===== ROUTES =====
 
-@app.get("/login")
-async def serve_login():
-    """Serve the login/register page"""
-    if os.path.exists("login.html"):
-        return FileResponse("login.html")
-    return JSONResponse(status_code=404, content={"message": "Login page not found"})
+# /login route removed
 
 
 @app.get("/")
@@ -322,78 +270,10 @@ async def serve_feedback_page():
     return JSONResponse(status_code=404, content={"message": "Feedback page not found"})
 
 
-# ===== AUTH ENDPOINTS =====
-
-@app.post("/api/auth/register", response_model=TokenResponse)
-async def register(body: RegisterRequest):
-    """Register a new user account"""
-    with get_db_session() as session:
-        # Check email uniqueness
-        existing_email = session.query(User).filter_by(email=body.email).first()
-        if existing_email:
-            raise HTTPException(status_code=400, detail="Email already registered")
-
-        # Check business_id uniqueness
-        existing_biz = session.query(User).filter_by(business_id=body.business_id).first()
-        if existing_biz:
-            raise HTTPException(status_code=400, detail="Business ID already taken")
-
-        user = User(
-            email=body.email,
-            business_id=body.business_id,
-            business_name=body.business_name or body.business_id,
-            industry='Marketing',
-            password_hash=hash_password(body.password)
-        )
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-
-        token = create_access_token({"sub": user.business_id})
-        logger.info(f"New user registered: {user.business_id}")
-        return TokenResponse(
-            access_token=token,
-            business_id=user.business_id,
-            business_name=user.business_name
-        )
+# Auth endpoints removed
 
 
-@app.post("/api/auth/login", response_model=TokenResponse)
-async def login(body: LoginRequest):
-    """Login with email + password, returns JWT"""
-    with get_db_session() as session:
-        user = session.query(User).filter_by(email=body.email).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-        if not user.password_hash:
-            raise HTTPException(status_code=401, detail="Account has no password set. Please register again.")
-        if not verify_password(body.password, user.password_hash):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-        if not user.is_active:
-            raise HTTPException(status_code=403, detail="Account is inactive")
-
-        token = create_access_token({"sub": user.business_id})
-        logger.info(f"User logged in: {user.business_id}")
-        return TokenResponse(
-            access_token=token,
-            business_id=user.business_id,
-            business_name=user.business_name
-        )
-
-
-@app.get("/api/auth/me")
-async def get_me(current_user: User = Depends(get_current_user)):
-    """Get current authenticated user info"""
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "business_id": current_user.business_id,
-        "business_name": current_user.business_name,
-        "subscription_tier": current_user.subscription_tier,
-        "is_active": current_user.is_active,
-        "monthly_generation_limit": current_user.monthly_generation_limit,
-        "monthly_generations_used": current_user.monthly_generations_used,
-    }
+# User profile endpoint removed
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -607,11 +487,9 @@ async def upload_documents(
             "total_size_kb": round(total_size / 1024, 2)
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Upload failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Upload failed. Please try again in a few minutes.")
 
 
 @limiter.limit("5/minute")
@@ -667,7 +545,7 @@ async def generate_content(request: Request, body: GenerateRequest):
         
         raise HTTPException(
             status_code=500, 
-            detail=f"Generation failed: {str(e)}"
+            detail="Generation failed. Please try again in a few minutes."
         )
 
 @app.post("/api/feedback", response_model=FeedbackResponse)
@@ -715,7 +593,7 @@ async def submit_feedback(request: FeedbackRequest):
         logger.error(f"Feedback submission failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, 
-            detail=f"Feedback failed: {str(e)[:200]}"
+            detail="Feedback submission failed. Please try again in a few minutes."
         )
 
 
@@ -737,7 +615,7 @@ async def get_learning_stats(request:Request, business_id: str, content_type: st
         logger.error(f"Stats retrieval failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, 
-            detail=f"Stats retrieval failed: {str(e)[:200]}"
+            detail="Stats retrieval failed. Please try again later."
         )
 
 
@@ -776,7 +654,7 @@ async def verify_learning(request:Request, business_id: str, content_type: str =
         logger.error(f"Verification failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, 
-            detail=f"Verification failed: {str(e)[:200]}"
+            detail="Verification failed. Please try again later."
         )
 
 
@@ -800,7 +678,7 @@ async def refresh_metrics(request: Request, business_id: str, content_type: str 
         logger.error(f"Metrics refresh failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Refresh failed: {str(e)}"
+            detail="Metrics refresh failed. Please try again in a few minutes."
         )
 
 
@@ -855,12 +733,12 @@ async def rate_limit_handler(request: Request, exc: HTTPException):
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc: Exception):
     """Custom 500 error response"""
-    logger.error(f"Internal error: {exc}", exc_info=True)
+    logger.error(f"Unhandled internal error: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content={
             "error": "internal_server_error",
-            "message": "An internal error occurred. Please try again later.",
+            "message": "An internal error occurred. Please try again in a few minutes.",
             "timestamp": datetime.utcnow().isoformat()
         }
     )
